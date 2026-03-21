@@ -1,6 +1,6 @@
 {
 	"compilerOptions": {
-		"baseUrl": "src",
+		"baseUrl": ".",
 		"inlineSourceMap": true,
 		"inlineSources": true,
 		"module": "ESNext",
@@ -11,7 +11,6 @@
 		"noImplicitReturns": true,
 		"moduleResolution": "node",
 		"importHelpers": true,
-		"noUncheckedIndexedAccess": true,
 		"isolatedModules": true,
 		"strictNullChecks": true,
 		"strictBindCallApply": true,
@@ -25,6 +24,6 @@
 		]
 	},
 	"include": [
-		"src/**/*.ts"
+		"Source/**/*.ts"
 	]
 }
