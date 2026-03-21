@@ -1,8 +1,45 @@
-/*
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
 
-If your plugin does not need CSS, delete this file.
+.html-embed {
+	margin: 1em 0;
+}
 
-*/
+.html-embed-iframe-container {
+	position: relative;
+	width: 100%;
+	height: 842px;
+	overflow: hidden;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.html-embed-iframe-container iframe {
+	width: 100%;
+	height: 842px;
+	border: none;
+	display: block;
+	background-color: white;
+}
+
+.theme-dark .html-embed-iframe-container iframe {
+	background-color: var(--background-primary);
+}
+
+.html-embed .markdown-embed-content,
+.html-embed .markdown-preview-view {
+	padding: 0;
+	margin: 0;
+}
+
+.html-embed .markdown-preview-sizer {
+	padding: 0;
+	height: 842px;
+}
+
+.html-embed-error {
+	padding: 12px;
+	background: var(--background-secondary);
+	color: var(--text-error);
+	border-radius: var(--radius-m);
+	font-size: 12px;
+}

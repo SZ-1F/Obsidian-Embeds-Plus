@@ -32,7 +32,7 @@ export class HTMLFileView extends FileView {
 
 	async onLoadFile(File: TFile) {
 		try {
-			const HtmlContent = await this.app.vault.read(File);
+			const HtmlContent = await this.Plugin.GetCachedHtmlContent(File);
 			this.RenderHtml(HtmlContent);
 		} catch (ErrorValue) {
 			this.contentEl.innerHTML = `<div style="padding: 20px; color: red;">Error loading file: ${ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue)}</div>`;
