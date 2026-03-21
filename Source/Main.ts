@@ -1,5 +1,7 @@
+import type { EditorView } from '@codemirror/view';
 import {
 	MarkdownPostProcessorContext,
+	MarkdownView,
 	Plugin,
 	TFile,
 	WorkspaceLeaf,
@@ -11,12 +13,25 @@ import {
 } from './Constants';
 import { HTMLEmbedRenderer } from './HTMLEmbedRenderer';
 import { HTMLFileView } from './HTMLFileView';
+import {
+	CreateHtmlEmbedStateField,
+	HtmlCacheUpdateEffect,
+} from './CodeMirrorExtensions';
 import { SanitiseHtml } from './HTMLSanitiser';
 
+interface MarkdownViewWithCm extends MarkdownView {
+	editor: MarkdownView['editor'] & {
+		cm?: EditorView;
+	};
+}
+
 export default class HtmlViewerPlugin extends Plugin {
+	HtmlCache: Map<string, string> = new Map();
+
 	async onload() {
 		this.registerView(VIEW_TYPE_HTML, (Leaf: WorkspaceLeaf) => new HTMLFileView(Leaf, this));
 		this.registerExtensions(['html', 'mhtml', 'webarchive'], VIEW_TYPE_HTML);
+		this.registerEditorExtension(CreateHtmlEmbedStateField(this));
 
 		const PostProcessor = this.registerMarkdownPostProcessor((Element, Context) => {
 			const EmbedElements = Element.querySelectorAll('.internal-embed');
@@ -31,6 +46,20 @@ export default class HtmlViewerPlugin extends Plugin {
 		});
 
 		PostProcessor.sortOrder = 100;
+
+		this.registerEvent(
+			this.app.vault.on('modify', (File) => {
+				if (!(File instanceof TFile)) {
+					return;
+				}
+
+				if (!IsHtmlEmbedExtension(File.extension)) {
+					return;
+				}
+
+				void this.LoadAndCacheHtml(File);
+			})
+		);
 	}
 
 	ResolveHtmlFile(FilePath: string, SourcePath: string): TFile | null {
@@ -49,8 +78,13 @@ export default class HtmlViewerPlugin extends Plugin {
 	}
 
 	async GetCachedHtmlContent(File: TFile): Promise<string> {
-		const RawContent = await this.app.vault.read(File);
-		return SanitiseHtml(RawContent);
+		const CachedContent = this.HtmlCache.get(File.path);
+		if (CachedContent !== undefined) {
+			return CachedContent;
+		}
+
+		await this.LoadAndCacheHtml(File);
+		return this.HtmlCache.get(File.path) ?? '';
 	}
 
 	private ProcessReadingViewEmbed(
@@ -101,5 +135,39 @@ export default class HtmlViewerPlugin extends Plugin {
 
 		const Renderer = new HTMLEmbedRenderer(EmbedWrapper, File, this);
 		Context.addChild(Renderer);
+	}
+
+	async LoadAndCacheHtml(File: TFile): Promise<void> {
+		try {
+			const RawContent = await this.app.vault.read(File);
+			const SanitisedContent = SanitiseHtml(RawContent);
+			this.HtmlCache.set(File.path, SanitisedContent);
+			this.DispatchCacheUpdate(File.path);
+		} catch (ErrorValue) {
+			console.error('Error loading HTML file:', ErrorValue);
+			this.HtmlCache.set(File.path, '');
+		}
+	}
+
+	private DispatchCacheUpdate(FilePath: string): void {
+		this.app.workspace.iterateAllLeaves((Leaf) => {
+			if (Leaf.view.getViewType() !== 'markdown') {
+				return;
+			}
+
+			const MarkdownLeafView = Leaf.view as MarkdownViewWithCm;
+			const CmEditor = MarkdownLeafView.editor.cm;
+			if (!CmEditor) {
+				return;
+			}
+
+			CmEditor.dispatch({
+				effects: HtmlCacheUpdateEffect.of(FilePath),
+			});
+		});
+	}
+
+	onunload() {
+		this.HtmlCache.clear();
 	}
 }
