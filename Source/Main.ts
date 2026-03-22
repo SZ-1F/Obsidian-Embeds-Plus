@@ -19,6 +19,7 @@ import {
 	HtmlCacheUpdateEffect,
 } from './CodeMirrorExtensions';
 import { SanitiseHtml } from './HTMLSanitiser';
+import { ParseWebArchive } from './WebArchiveParser';
 
 interface MarkdownViewWithCm extends MarkdownView {
 	editor: MarkdownView['editor'] & {
@@ -139,9 +140,18 @@ export default class HtmlViewerPlugin extends Plugin {
 		Context.addChild(Renderer);
 	}
 
+	private async ReadHtmlFileContent(File: TFile): Promise<string> {
+		if (File.extension.toLowerCase() !== 'webarchive') {
+			return this.app.vault.read(File);
+		}
+
+		const BinaryContent = await this.app.vault.readBinary(File);
+		return ParseWebArchive(BinaryContent);
+	}
+
 	async LoadAndCacheHtml(File: TFile): Promise<void> {
 		try {
-			const RawContent = await this.app.vault.read(File);
+			const RawContent = await this.ReadHtmlFileContent(File);
 			const SanitisedContent = SanitiseHtml(RawContent);
 			this.HtmlCache.set(File.path, SanitisedContent);
 			this.DispatchCacheUpdate(File.path);
