@@ -1,5 +1,12 @@
-import { EditorState, Extension, Prec, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
+import {
+	EditorState,
+	Extension,
+	Prec,
+	RangeSetBuilder,
+	StateEffect,
+	StateField,
+} from '@codemirror/state';
+import { Decoration, DecorationSet, EditorView, keymap as Keymap } from '@codemirror/view';
 import {
 	editorInfoField as EditorInfoField,
 	editorLivePreviewField as EditorLivePreviewField,
@@ -15,6 +22,62 @@ const CachedEmbedRegex = CreateHtmlEmbedRegex();
 function ResetEmbedRegex(): RegExp {
 	CachedEmbedRegex.lastIndex = 0;
 	return CachedEmbedRegex;
+}
+
+function ShouldBlockBackspace(DocumentText: string, CursorPosition: number): boolean {
+	const EmbedRegex = ResetEmbedRegex();
+	let Match: RegExpExecArray | null = null;
+
+	while ((Match = EmbedRegex.exec(DocumentText)) !== null) {
+		const EmbedStart = Match.index;
+		const EmbedEnd = EmbedStart + Match[0].length;
+
+		if (CursorPosition === EmbedEnd) {
+			return true;
+		}
+
+		if (CursorPosition === EmbedEnd + 1 && DocumentText[EmbedEnd] === ']') {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function ShouldBlockDelete(DocumentText: string, CursorPosition: number): boolean {
+	const EmbedRegex = ResetEmbedRegex();
+	let Match: RegExpExecArray | null = null;
+
+	while ((Match = EmbedRegex.exec(DocumentText)) !== null) {
+		if (CursorPosition === Match.index) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+export function CreateProtectionKeymap(): Extension {
+	return Prec.highest(
+		Keymap.of([
+			{
+				key: 'Backspace',
+				run: (View: EditorView): boolean => {
+					const CursorPosition = View.state.selection.main.head;
+					const DocumentText = View.state.doc.toString();
+					return ShouldBlockBackspace(DocumentText, CursorPosition);
+				},
+			},
+			{
+				key: 'Delete',
+				run: (View: EditorView): boolean => {
+					const CursorPosition = View.state.selection.main.head;
+					const DocumentText = View.state.doc.toString();
+					return ShouldBlockDelete(DocumentText, CursorPosition);
+				},
+			},
+		])
+	);
 }
 
 export function CreateHtmlEmbedStateField(Plugin: HtmlViewerPlugin): Extension {
