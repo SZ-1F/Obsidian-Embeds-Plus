@@ -94,7 +94,14 @@ function BuildHtmlEmbedDecorations(State: EditorState, Plugin: HtmlViewerPlugin)
 				void Plugin.LoadAndCacheHtml(File);
 			}
 
-			const Widget = new HTMLEmbedWidget(File, Plugin, CachedContent ?? '', IsLoading);
+			const Widget = new HTMLEmbedWidget(
+				File,
+				Plugin,
+				CachedContent ?? '',
+				IsLoading,
+				EmbedStart,
+				EmbedEnd
+			);
 
 			Builder.add(
 				EmbedStart,
