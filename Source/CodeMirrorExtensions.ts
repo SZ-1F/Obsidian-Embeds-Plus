@@ -5,6 +5,7 @@ import {
 	RangeSetBuilder,
 	StateEffect,
 	StateField,
+	Transaction,
 } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, keymap as Keymap } from '@codemirror/view';
 import {
@@ -113,7 +114,11 @@ export function CreateHtmlEmbedStateField(Plugin: HtmlViewerPlugin): Extension {
 				EffectValue.is(HtmlCacheUpdateEffect)
 			);
 
-			if (TransactionValue.docChanged || HasCacheUpdate) {
+			if (TransactionValue.docChanged) {
+				return BuildIncrementalDecorations(Decorations, TransactionValue, Plugin);
+			}
+
+			if (HasCacheUpdate) {
 				return BuildHtmlEmbedDecorations(TransactionValue.state, Plugin);
 			}
 
@@ -126,6 +131,47 @@ export function CreateHtmlEmbedStateField(Plugin: HtmlViewerPlugin): Extension {
 	});
 
 	return Prec.highest(HtmlEmbedField);
+}
+
+function BuildIncrementalDecorations(
+	OldDecorations: DecorationSet,
+	TransactionValue: Transaction,
+	Plugin: HtmlViewerPlugin
+): DecorationSet {
+	try {
+		let ActualChangeSize = 0;
+		TransactionValue.changes.iterChanges((FromA, ToA, FromB, ToB) => {
+			ActualChangeSize += ToA - FromA;
+			ActualChangeSize += ToB - FromB;
+		});
+
+		if (ActualChangeSize > 1000) {
+			return BuildHtmlEmbedDecorations(TransactionValue.state, Plugin);
+		}
+
+		let NeedsRebuild = false;
+		TransactionValue.changes.iterChangedRanges((FromA, ToA) => {
+			OldDecorations.between(FromA, ToA, (DecorationFrom, DecorationTo) => {
+				const IsBoundaryInsertion =
+					FromA === ToA && (FromA === DecorationFrom || FromA === DecorationTo);
+				if (IsBoundaryInsertion) {
+					return;
+				}
+
+				NeedsRebuild = true;
+				return false;
+			});
+		});
+
+		if (!NeedsRebuild) {
+			return OldDecorations.map(TransactionValue.changes);
+		}
+
+		return BuildHtmlEmbedDecorations(TransactionValue.state, Plugin);
+	} catch (ErrorValue) {
+		console.error('Error building incremental decorations:', ErrorValue);
+		return BuildHtmlEmbedDecorations(TransactionValue.state, Plugin);
+	}
 }
 
 function BuildHtmlEmbedDecorations(State: EditorState, Plugin: HtmlViewerPlugin): DecorationSet {
