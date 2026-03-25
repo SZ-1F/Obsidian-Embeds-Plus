@@ -3,6 +3,7 @@ import { EditorView, WidgetType, type Rect } from '@codemirror/view';
 import {
 	HTML_EMBED_HEIGHT_PX,
 	HTML_EMBED_IFRAME_SANDBOX,
+	HTML_EMBED_ROOT_MARGIN,
 	HTML_EMBED_TOTAL_HEIGHT_PX,
 } from './Constants';
 import { EditEmbedModal } from './EditEmbedModal';
@@ -18,7 +19,10 @@ const DeleteIconSvg =
 
 export class HTMLEmbedWidget extends WidgetType {
 	private CurrentEditorView: EditorView | null = null;
+	private readonly ContentHashValue: string;
 	private BlobUrl: string | null = null;
+	private IntersectionObserverValue: IntersectionObserver | null = null;
+	private HasRenderedOnce = false;
 
 	constructor(
 		private readonly File: TFile,
@@ -29,6 +33,9 @@ export class HTMLEmbedWidget extends WidgetType {
 		private readonly LinkEnd: number
 	) {
 		super();
+		this.ContentHashValue = IsLoading
+			? 'loading'
+			: (Plugin.HtmlHashCache.get(File.path) ?? '');
 	}
 
 	toDOM(View: EditorView): HTMLElement {
@@ -37,11 +44,16 @@ export class HTMLEmbedWidget extends WidgetType {
 		const Container = document.createElement('div');
 		Container.className = 'html-embed-widget cm-embed-block';
 		Container.contentEditable = 'false';
+		Container.setAttribute('data-html-embed-path', this.File.path);
+		Container.setAttribute('data-link-start', this.LinkStart.toString());
+		Container.setAttribute('data-link-end', this.LinkEnd.toString());
 		Container.style.display = 'block';
 		Container.style.width = '100%';
 		Container.style.height = `${HTML_EMBED_TOTAL_HEIGHT_PX}px`;
 		Container.style.userSelect = 'none';
 		Container.style.pointerEvents = 'auto';
+
+		console.debug('[HTML-Embed] Rendering widget for', this.File.path, 'loading:', this.IsLoading);
 
 		const Embed = Container.createDiv({ cls: 'internal-embed is-loaded html-embed' });
 		if (this.IsLoading) {
@@ -92,10 +104,9 @@ export class HTMLEmbedWidget extends WidgetType {
 
 		if (this.IsLoading) {
 			Iframe.style.visibility = 'hidden';
-		} else {
-			this.RenderIframeContent(Iframe);
 		}
 
+		this.SetupLazyLoading(Iframe, IframeContainer);
 		return Container;
 	}
 
@@ -119,9 +130,47 @@ export class HTMLEmbedWidget extends WidgetType {
 		});
 	}
 
+	private SetupLazyLoading(Iframe: HTMLIFrameElement, Container: HTMLElement): void {
+		if (!('IntersectionObserver' in window)) {
+			this.RenderIframeContent(Iframe);
+			return;
+		}
+
+		this.IntersectionObserverValue = new IntersectionObserver(
+			(Entries) => {
+				for (const Entry of Entries) {
+					if (!Entry.isIntersecting || this.HasRenderedOnce) {
+						continue;
+					}
+
+					console.debug('[HTML-Embed] Iframe entered viewport for', this.File.path);
+					this.HasRenderedOnce = true;
+					this.RenderIframeContent(Iframe);
+
+					this.IntersectionObserverValue?.disconnect();
+					this.IntersectionObserverValue = null;
+				}
+			},
+			{
+				rootMargin: HTML_EMBED_ROOT_MARGIN,
+				threshold: 0,
+			}
+		);
+
+		this.IntersectionObserverValue.observe(Container);
+	}
+
 	private RenderIframeContent(Iframe: HTMLIFrameElement): void {
+		if (this.IsLoading) {
+			console.debug('[HTML-Embed] Waiting for cached HTML before rendering', this.File.path);
+			return;
+		}
+
 		ScheduleNonBlockingRender(() => {
 			try {
+				console.debug('[HTML-Embed] Rendering iframe content for', this.File.path);
+				const RenderStart = performance.now();
+
 				const BlobContent = new Blob([this.HtmlContent], { type: 'text/html' });
 				if (this.BlobUrl) {
 					URL.revokeObjectURL(this.BlobUrl);
@@ -129,14 +178,21 @@ export class HTMLEmbedWidget extends WidgetType {
 
 				this.BlobUrl = URL.createObjectURL(BlobContent);
 				Iframe.src = this.BlobUrl;
+
 				Iframe.addEventListener(
 					'load',
 					() => {
 						Iframe.style.visibility = 'visible';
+						const RenderDuration = performance.now() - RenderStart;
+						console.debug(
+							`[HTML-Embed] Rendered iframe in ${RenderDuration.toFixed(2)}ms for`,
+							this.File.path
+						);
 					},
 					{ once: true }
 				);
-			} catch {
+			} catch (ErrorValue) {
+				console.error('[HTML-Embed] Async rendering failed, using sync fallback:', ErrorValue);
 				this.FallbackSyncRender(Iframe);
 			}
 		});
@@ -148,6 +204,7 @@ export class HTMLEmbedWidget extends WidgetType {
 			return;
 		}
 
+		console.debug('[HTML-Embed] Using sync fallback render for', this.File.path);
 		IframeDocument.open();
 		IframeDocument.write(this.HtmlContent);
 		IframeDocument.close();
@@ -229,10 +286,8 @@ export class HTMLEmbedWidget extends WidgetType {
 
 		return (
 			this.File.path === Other.File.path &&
-			this.HtmlContent === Other.HtmlContent &&
-			this.IsLoading === Other.IsLoading &&
-			this.LinkStart === Other.LinkStart &&
-			this.LinkEnd === Other.LinkEnd
+			this.ContentHashValue === Other.ContentHashValue &&
+			this.IsLoading === Other.IsLoading
 		);
 	}
 
@@ -253,9 +308,16 @@ export class HTMLEmbedWidget extends WidgetType {
 	}
 
 	destroy(_Dom: HTMLElement): void {
+		console.debug('[HTML-Embed] Widget destroyed for', this.File.path);
+
 		if (this.BlobUrl) {
 			URL.revokeObjectURL(this.BlobUrl);
 			this.BlobUrl = null;
+		}
+
+		if (this.IntersectionObserverValue) {
+			this.IntersectionObserverValue.disconnect();
+			this.IntersectionObserverValue = null;
 		}
 	}
 }

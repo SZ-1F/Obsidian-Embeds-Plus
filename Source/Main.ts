@@ -19,6 +19,7 @@ import {
 	HtmlCacheUpdateEffect,
 } from './CodeMirrorExtensions';
 import { SanitiseHtml } from './HTMLSanitiser';
+import { ContentHash } from './Utils';
 import { ParseWebArchive } from './WebArchiveParser';
 
 interface MarkdownViewWithCm extends MarkdownView {
@@ -29,6 +30,7 @@ interface MarkdownViewWithCm extends MarkdownView {
 
 export default class HtmlViewerPlugin extends Plugin {
 	HtmlCache: Map<string, string> = new Map();
+	HtmlHashCache: Map<string, string> = new Map();
 
 	async onload() {
 		this.registerView(VIEW_TYPE_HTML, (Leaf: WorkspaceLeaf) => new HTMLFileView(Leaf, this));
@@ -41,7 +43,6 @@ export default class HtmlViewerPlugin extends Plugin {
 			for (const EmbedElement of Array.from(EmbedElements)) {
 				this.ProcessReadingViewEmbed(EmbedElement as HTMLElement, Context);
 			}
-
 			const LinkElements = Element.querySelectorAll('a.internal-link');
 			for (const LinkElement of Array.from(LinkElements)) {
 				this.ProcessReadingViewLink(LinkElement as HTMLAnchorElement, Context);
@@ -55,11 +56,9 @@ export default class HtmlViewerPlugin extends Plugin {
 				if (!(File instanceof TFile)) {
 					return;
 				}
-
 				if (!IsHtmlEmbedExtension(File.extension)) {
 					return;
 				}
-
 				void this.LoadAndCacheHtml(File);
 			})
 		);
@@ -71,12 +70,10 @@ export default class HtmlViewerPlugin extends Plugin {
 		if (!IsHtmlEmbedExtension(Extension)) {
 			return null;
 		}
-
 		const File = this.app.metadataCache.getFirstLinkpathDest(ParsedLink.path, SourcePath);
 		if (!(File instanceof TFile)) {
 			return null;
 		}
-
 		return File;
 	}
 
@@ -85,7 +82,6 @@ export default class HtmlViewerPlugin extends Plugin {
 		if (CachedContent !== undefined) {
 			return CachedContent;
 		}
-
 		await this.LoadAndCacheHtml(File);
 		return this.HtmlCache.get(File.path) ?? '';
 	}
@@ -97,7 +93,6 @@ export default class HtmlViewerPlugin extends Plugin {
 		if (EmbedElement.hasClass('html-embed')) {
 			return;
 		}
-
 		let FilePath = EmbedElement.getAttribute('src') || EmbedElement.getAttribute('alt');
 		if (!FilePath) {
 			const LinkElement = EmbedElement.querySelector('a.internal-link');
@@ -105,16 +100,13 @@ export default class HtmlViewerPlugin extends Plugin {
 				FilePath = LinkElement.getAttribute('data-href') || LinkElement.getAttribute('href');
 			}
 		}
-
 		if (!FilePath) {
 			return;
 		}
-
 		const File = this.ResolveHtmlFile(FilePath, Context.sourcePath);
 		if (!File) {
 			return;
 		}
-
 		const Renderer = new HTMLEmbedRenderer(EmbedElement, File, this);
 		Context.addChild(Renderer);
 	}
@@ -127,15 +119,12 @@ export default class HtmlViewerPlugin extends Plugin {
 		if (!FilePath) {
 			return;
 		}
-
 		const File = this.ResolveHtmlFile(FilePath, Context.sourcePath);
 		if (!File) {
 			return;
 		}
-
 		const EmbedWrapper = document.createElement('div');
 		LinkElement.replaceWith(EmbedWrapper);
-
 		const Renderer = new HTMLEmbedRenderer(EmbedWrapper, File, this);
 		Context.addChild(Renderer);
 	}
@@ -144,7 +133,6 @@ export default class HtmlViewerPlugin extends Plugin {
 		if (File.extension.toLowerCase() !== 'webarchive') {
 			return this.app.vault.read(File);
 		}
-
 		const BinaryContent = await this.app.vault.readBinary(File);
 		return ParseWebArchive(BinaryContent);
 	}
@@ -154,10 +142,12 @@ export default class HtmlViewerPlugin extends Plugin {
 			const RawContent = await this.ReadHtmlFileContent(File);
 			const SanitisedContent = SanitiseHtml(RawContent);
 			this.HtmlCache.set(File.path, SanitisedContent);
+			this.HtmlHashCache.set(File.path, ContentHash(SanitisedContent));
 			this.DispatchCacheUpdate(File.path);
 		} catch (ErrorValue) {
 			console.error('Error loading HTML file:', ErrorValue);
 			this.HtmlCache.set(File.path, '');
+			this.HtmlHashCache.set(File.path, ContentHash(''));
 		}
 	}
 
@@ -166,13 +156,11 @@ export default class HtmlViewerPlugin extends Plugin {
 			if (Leaf.view.getViewType() !== 'markdown') {
 				return;
 			}
-
 			const MarkdownLeafView = Leaf.view as MarkdownViewWithCm;
 			const CmEditor = MarkdownLeafView.editor.cm;
 			if (!CmEditor) {
 				return;
 			}
-
 			CmEditor.dispatch({
 				effects: HtmlCacheUpdateEffect.of(FilePath),
 			});
@@ -181,5 +169,6 @@ export default class HtmlViewerPlugin extends Plugin {
 
 	onunload() {
 		this.HtmlCache.clear();
+		this.HtmlHashCache.clear();
 	}
 }
