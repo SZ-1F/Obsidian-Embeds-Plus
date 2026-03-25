@@ -7,7 +7,7 @@ import {
 } from './Constants';
 import { EditEmbedModal } from './EditEmbedModal';
 import type HtmlViewerPlugin from './Main';
-import { CreateHtmlEmbedRegex } from './Utils';
+import { CreateHtmlEmbedRegex, ScheduleNonBlockingRender } from './Utils';
 
 const EditIconSvg =
 	'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>';
@@ -18,6 +18,7 @@ const DeleteIconSvg =
 
 export class HTMLEmbedWidget extends WidgetType {
 	private CurrentEditorView: EditorView | null = null;
+	private BlobUrl: string | null = null;
 
 	constructor(
 		private readonly File: TFile,
@@ -79,18 +80,20 @@ export class HTMLEmbedWidget extends WidgetType {
 
 		const IframeContainer = Sizer.createDiv({ cls: 'html-embed-iframe-container' });
 		IframeContainer.style.height = `${HTML_EMBED_HEIGHT_PX}px`;
+		IframeContainer.style.position = 'relative';
 
 		const Iframe = IframeContainer.createEl('iframe');
 		Iframe.style.width = '100%';
 		Iframe.style.height = `${HTML_EMBED_HEIGHT_PX}px`;
 		Iframe.style.border = 'none';
 		Iframe.style.display = 'block';
+		Iframe.style.overflow = 'auto';
 		Iframe.setAttribute('sandbox', HTML_EMBED_IFRAME_SANDBOX);
 
 		if (this.IsLoading) {
 			Iframe.style.visibility = 'hidden';
 		} else {
-			Iframe.srcdoc = this.HtmlContent;
+			this.RenderIframeContent(Iframe);
 		}
 
 		return Container;
@@ -114,6 +117,41 @@ export class HTMLEmbedWidget extends WidgetType {
 			Event.stopPropagation();
 			OnClick();
 		});
+	}
+
+	private RenderIframeContent(Iframe: HTMLIFrameElement): void {
+		ScheduleNonBlockingRender(() => {
+			try {
+				const BlobContent = new Blob([this.HtmlContent], { type: 'text/html' });
+				if (this.BlobUrl) {
+					URL.revokeObjectURL(this.BlobUrl);
+				}
+
+				this.BlobUrl = URL.createObjectURL(BlobContent);
+				Iframe.src = this.BlobUrl;
+				Iframe.addEventListener(
+					'load',
+					() => {
+						Iframe.style.visibility = 'visible';
+					},
+					{ once: true }
+				);
+			} catch {
+				this.FallbackSyncRender(Iframe);
+			}
+		});
+	}
+
+	private FallbackSyncRender(Iframe: HTMLIFrameElement): void {
+		const IframeDocument = Iframe.contentDocument;
+		if (!IframeDocument) {
+			return;
+		}
+
+		IframeDocument.open();
+		IframeDocument.write(this.HtmlContent);
+		IframeDocument.close();
+		Iframe.style.visibility = 'visible';
 	}
 
 	private FindLinkRange(): { from: number; to: number } | null {
@@ -212,5 +250,12 @@ export class HTMLEmbedWidget extends WidgetType {
 
 	get estimatedHeight(): number {
 		return HTML_EMBED_TOTAL_HEIGHT_PX;
+	}
+
+	destroy(_Dom: HTMLElement): void {
+		if (this.BlobUrl) {
+			URL.revokeObjectURL(this.BlobUrl);
+			this.BlobUrl = null;
+		}
 	}
 }

@@ -5,9 +5,11 @@ import {
 	IsHtmlViewExtension,
 } from './Constants';
 import type HtmlViewerPlugin from './Main';
+import { ScheduleNonBlockingRender } from './Utils';
 
 export class HTMLFileView extends FileView {
 	private readonly Plugin: HtmlViewerPlugin;
+	private BlobUrl: string | null = null;
 
 	constructor(Leaf: WorkspaceLeaf, Plugin: HtmlViewerPlugin) {
 		super(Leaf);
@@ -48,6 +50,57 @@ export class HTMLFileView extends FileView {
 		Iframe.style.border = 'none';
 		Iframe.style.display = 'block';
 		Iframe.setAttribute('sandbox', HTML_EMBED_IFRAME_SANDBOX);
-		Iframe.srcdoc = HtmlContent;
+
+		this.RenderIframeAsync(Iframe, HtmlContent);
+	}
+
+	private RenderIframeAsync(Iframe: HTMLIFrameElement, HtmlContent: string): void {
+		ScheduleNonBlockingRender(() => {
+			try {
+				console.debug('[HtmlFileView] Rendering iframe content');
+				const RenderStart = performance.now();
+
+				if (this.BlobUrl) {
+					URL.revokeObjectURL(this.BlobUrl);
+				}
+
+				const BlobContent = new Blob([HtmlContent], { type: 'text/html' });
+				this.BlobUrl = URL.createObjectURL(BlobContent);
+				Iframe.src = this.BlobUrl;
+
+				Iframe.addEventListener(
+					'load',
+					() => {
+						const RenderDuration = performance.now() - RenderStart;
+						console.debug(`[HtmlFileView] Rendered iframe in ${RenderDuration.toFixed(2)}ms`);
+					},
+					{ once: true }
+				);
+			} catch (ErrorValue) {
+				console.error('[HtmlFileView] Async rendering failed, using sync fallback:', ErrorValue);
+				this.FallbackSyncRender(Iframe, HtmlContent);
+			}
+		});
+	}
+
+	private FallbackSyncRender(Iframe: HTMLIFrameElement, HtmlContent: string): void {
+		const IframeDocument = Iframe.contentDocument;
+		if (!IframeDocument) {
+			this.contentEl.innerHTML =
+				'<div style="padding: 20px; color: red;">Error: Unable to access iframe document.</div>';
+			return;
+		}
+
+		console.debug('[HtmlFileView] Using sync fallback render');
+		IframeDocument.open();
+		IframeDocument.write(HtmlContent);
+		IframeDocument.close();
+	}
+
+	async onUnloadFile(_File: TFile) {
+		if (this.BlobUrl) {
+			URL.revokeObjectURL(this.BlobUrl);
+			this.BlobUrl = null;
+		}
 	}
 }

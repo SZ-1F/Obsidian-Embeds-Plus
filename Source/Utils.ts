@@ -1,4 +1,7 @@
-import { HTML_EMBED_LINK_PATTERN } from './Constants';
+import {
+	HTML_EMBED_LINK_PATTERN,
+	NON_BLOCKING_RENDER_TIMEOUT_MS,
+} from './Constants';
 
 /**
  * Returns a Uint8Array so parser code can handle a single binary type.
@@ -31,6 +34,21 @@ export function Uint8ArrayToBase64(Bytes: Uint8Array): string {
 export function Uint8ArrayToString(Bytes: Uint8Array): string {
 	const Decoder = new TextDecoder('utf-8');
 	return Decoder.decode(Bytes);
+}
+
+export function ScheduleNonBlockingRender(
+	Callback: () => void,
+	TimeoutMs = NON_BLOCKING_RENDER_TIMEOUT_MS
+): void {
+	const WindowObject = window as unknown as {
+		requestIdleCallback?: (Callback: () => void, Options?: { timeout: number }) => number;
+	};
+	if (typeof WindowObject.requestIdleCallback === 'function') {
+		WindowObject.requestIdleCallback(Callback, { timeout: TimeoutMs });
+		return;
+	}
+
+	requestAnimationFrame(Callback);
 }
 
 export function CreateHtmlEmbedRegex(): RegExp {
