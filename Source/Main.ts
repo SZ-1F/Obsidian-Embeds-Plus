@@ -19,6 +19,7 @@ import {
 	CreateProtectionKeymap,
 	HtmlCacheUpdateEffect,
 } from './CodeMirrorExtensions';
+import { CreateLivePreviewSuppressor } from './LivePreviewSuppressor';
 import { SanitiseHtml } from './HTMLSanitiser';
 import { ContentHash } from './Utils';
 import { ParseWebArchive } from './WebArchiveParser';
@@ -44,6 +45,7 @@ export default class HtmlViewerPlugin extends Plugin {
 
 		this.registerEditorExtension(CreateHtmlEmbedStateField(this));
 		this.registerEditorExtension(CreateProtectionKeymap());
+		this.registerEditorExtension(CreateLivePreviewSuppressor());
 
 		const PostProcessor = this.registerMarkdownPostProcessor((Element, Context) => {
 			const EmbedElements = Element.querySelectorAll('.internal-embed');

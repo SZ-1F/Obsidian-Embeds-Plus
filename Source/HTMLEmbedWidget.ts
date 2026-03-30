@@ -1,12 +1,17 @@
-import { TFile } from 'obsidian';
+import { EditorSelection } from '@codemirror/state';
 import { EditorView, WidgetType, type Rect } from '@codemirror/view';
+import { TFile } from 'obsidian';
+import { ConfirmModal } from './ConfirmModal';
 import {
 	HTML_EMBED_HEIGHT_PX,
 	HTML_EMBED_IFRAME_SANDBOX,
 	HTML_EMBED_ROOT_MARGIN,
 	HTML_EMBED_TOTAL_HEIGHT_PX,
 } from './Constants';
-import { EditEmbedModal } from './EditEmbedModal';
+import {
+	ClearHtmlEmbedRevealEffect,
+	RevealHtmlEmbedEffect,
+} from './CodeMirrorExtensions';
 import type HtmlViewerPlugin from './Main';
 import { CreateHtmlEmbedRegex, ScheduleNonBlockingRender } from './Utils';
 
@@ -73,7 +78,7 @@ export class HTMLEmbedWidget extends WidgetType {
 
 		const HeaderRight = Header.createDiv({ cls: 'html-embed-header-right' });
 		this.CreateHeaderButton(HeaderRight, 'Edit embed', EditIconSvg, null, () => this.EditEmbed());
-		this.CreateHeaderButton(HeaderRight, 'Open in new tab', OpenIconSvg, null, () => {
+		this.CreateTextButton(HeaderRight, OpenIconSvg, 'Open in a New Tab', () => {
 			this.Plugin.app.workspace.openLinkText(this.File.path, '', false);
 		});
 		this.CreateHeaderButton(
@@ -123,6 +128,28 @@ export class HTMLEmbedWidget extends WidgetType {
 			attr: { 'aria-label': AriaLabel },
 		});
 		Button.innerHTML = IconSvg;
+		Button.addEventListener('click', (Event) => {
+			Event.preventDefault();
+			Event.stopPropagation();
+			OnClick();
+		});
+	}
+
+	private CreateTextButton(
+		Container: HTMLElement,
+		IconSvg: string,
+		Label: string,
+		OnClick: () => void
+	): void {
+		const Button = Container.createEl('button', {
+			cls: 'html-embed-button html-embed-button-text',
+			attr: { type: 'button' },
+		});
+
+		const IconContainer = Button.createSpan({ cls: 'html-embed-button-icon' });
+		IconContainer.innerHTML = IconSvg;
+		Button.createSpan({ cls: 'html-embed-button-label', text: Label });
+
 		Button.addEventListener('click', (Event) => {
 			Event.preventDefault();
 			Event.stopPropagation();
@@ -237,29 +264,22 @@ export class HTMLEmbedWidget extends WidgetType {
 			return;
 		}
 
-		if (!this.FindLinkRange()) {
+		const Range = this.FindLinkRange();
+		if (!Range) {
 			return;
 		}
 
-		const Modal = new EditEmbedModal(this.Plugin.app, this.File.path, (NewPath: string) => {
-			if (!this.CurrentEditorView) {
-				return;
-			}
+		const CursorPosition = Math.min(Range.from + 3, Range.to);
 
-			const CurrentRange = this.FindLinkRange();
-			if (!CurrentRange) {
-				return;
-			}
-
-			const NewLinkText = `![[${NewPath}]]`;
-			this.CurrentEditorView.dispatch({
-				changes: { from: CurrentRange.from, to: CurrentRange.to, insert: NewLinkText },
-				scrollIntoView: true,
-			});
-			this.CurrentEditorView.focus();
+		this.CurrentEditorView.dispatch({
+			effects: [
+				ClearHtmlEmbedRevealEffect.of(),
+				RevealHtmlEmbedEffect.of(Range),
+			],
+			selection: EditorSelection.single(CursorPosition),
+			scrollIntoView: true,
 		});
-
-		Modal.open();
+		this.CurrentEditorView.focus();
 	}
 
 	private DeleteEmbed(): void {
@@ -267,16 +287,31 @@ export class HTMLEmbedWidget extends WidgetType {
 			return;
 		}
 
-		const Range = this.FindLinkRange();
-		if (!Range) {
-			return;
-		}
+		const Modal = new ConfirmModal(
+			this.Plugin.app,
+			'Remove HTML embed',
+			'Remove this embed from the current note? The source file will not be deleted.',
+			'Remove embed',
+			() => {
+				if (!this.CurrentEditorView) {
+					return;
+				}
 
-		this.CurrentEditorView.dispatch({
-			changes: { from: Range.from, to: Range.to },
-			scrollIntoView: true,
-		});
-		this.CurrentEditorView.focus();
+				// Find current position at confirm time, not at modal-open time.
+				const Range = this.FindLinkRange();
+				if (!Range) {
+					return;
+				}
+
+				this.CurrentEditorView.dispatch({
+					changes: { from: Range.from, to: Range.to },
+					scrollIntoView: true,
+				});
+				this.CurrentEditorView.focus();
+			}
+		);
+
+		Modal.open();
 	}
 
 	eq(Other: WidgetType): boolean {
