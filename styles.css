@@ -52,6 +52,17 @@
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.html-embed-native-live-preview {
+	margin: 0;
+	border-radius: 0;
+	background-color: transparent;
+	transition: none;
+}
+
+.html-embed-native-live-preview:hover {
+	box-shadow: none;
+}
+
 .html-embed-iframe-container {
 	position: relative;
 	width: 100%;
@@ -60,6 +71,11 @@
 	overflow: hidden;
 	border-radius: var(--radius-m);
 	border: 1px solid var(--background-modifier-border);
+}
+
+.html-embed-native-live-preview .html-embed-iframe-container {
+	border: none;
+	border-radius: 0;
 }
 
 .html-embed-iframe-container iframe {
@@ -72,6 +88,10 @@
 	border-radius: var(--radius-m);
 	overflow-y: auto;
 	overflow-x: auto;
+}
+
+.html-embed-native-live-preview .html-embed-iframe-container iframe {
+	border-radius: 0;
 }
 
 .theme-dark .html-embed-iframe-container iframe {

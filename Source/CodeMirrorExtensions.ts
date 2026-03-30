@@ -8,7 +8,7 @@ import {
 	StateField,
 	Transaction,
 } from '@codemirror/state';
-import { Decoration, DecorationSet, EditorView, keymap as Keymap } from '@codemirror/view';
+import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import {
 	editorInfoField as EditorInfoField,
 	editorLivePreviewField as EditorLivePreviewField,
@@ -36,62 +36,6 @@ const CachedEmbedRegex = CreateHtmlEmbedRegex();
 function ResetEmbedRegex(): RegExp {
 	CachedEmbedRegex.lastIndex = 0;
 	return CachedEmbedRegex;
-}
-
-function ShouldBlockBackspace(DocumentText: string, CursorPosition: number): boolean {
-	const EmbedRegex = ResetEmbedRegex();
-	let Match: RegExpExecArray | null = null;
-
-	while ((Match = EmbedRegex.exec(DocumentText)) !== null) {
-		const EmbedStart = Match.index;
-		const EmbedEnd = EmbedStart + Match[0].length;
-
-		if (CursorPosition === EmbedEnd) {
-			return true;
-		}
-
-		if (CursorPosition === EmbedEnd + 1 && DocumentText[EmbedEnd] === ']') {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-function ShouldBlockDelete(DocumentText: string, CursorPosition: number): boolean {
-	const EmbedRegex = ResetEmbedRegex();
-	let Match: RegExpExecArray | null = null;
-
-	while ((Match = EmbedRegex.exec(DocumentText)) !== null) {
-		if (CursorPosition === Match.index) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-export function CreateProtectionKeymap(): Extension {
-	return Prec.highest(
-		Keymap.of([
-			{
-				key: 'Backspace',
-				run: (View: EditorView): boolean => {
-					const CursorPosition = View.state.selection.main.head;
-					const DocumentText = View.state.doc.toString();
-					return ShouldBlockBackspace(DocumentText, CursorPosition);
-				},
-			},
-			{
-				key: 'Delete',
-				run: (View: EditorView): boolean => {
-					const CursorPosition = View.state.selection.main.head;
-					const DocumentText = View.state.doc.toString();
-					return ShouldBlockDelete(DocumentText, CursorPosition);
-				},
-			},
-		])
-	);
 }
 
 export function CreateHtmlEmbedStateField(Plugin: HtmlViewerPlugin): Extension {
@@ -133,6 +77,18 @@ export function CreateHtmlEmbedStateField(Plugin: HtmlViewerPlugin): Extension {
 					Decorations: Decoration.none,
 					RevealedRange: null,
 				};
+			}
+
+			// Detect transition from Source Mode to Live Preview and rebuild.
+			let WasLivePreview = false;
+			try {
+				WasLivePreview = TransactionValue.startState.field(EditorLivePreviewField);
+			} catch {
+				// Field unavailable in start state.
+			}
+
+			if (IsLivePreview && !WasLivePreview) {
+				return BuildHtmlEmbedFieldValue(TransactionValue.state, Plugin, null);
 			}
 
 			let RevealedRange = MapEmbedRange(FieldValue.RevealedRange, TransactionValue);
@@ -186,7 +142,10 @@ export function CreateHtmlEmbedStateField(Plugin: HtmlViewerPlugin): Extension {
 		},
 
 		provide(Field): Extension {
-			return EditorView.decorations.from(Field, (Value) => Value.Decorations);
+			return [
+				EditorView.decorations.from(Field, (Value) => Value.Decorations),
+				EditorView.atomicRanges.from(Field, (Value) => (_View) => Value.Decorations),
+			];
 		},
 	});
 
@@ -213,9 +172,10 @@ function BuildIncrementalDecorations(
 		let NeedsRebuild = false;
 		TransactionValue.changes.iterChangedRanges((FromA, ToA) => {
 			OldDecorations.between(FromA, ToA, (DecorationFrom, DecorationTo) => {
-				const IsBoundaryInsertion =
-					FromA === ToA && (FromA === DecorationFrom || FromA === DecorationTo);
-				if (IsBoundaryInsertion) {
+				// For `side: -1` block widgets, insertions at the end boundary can move the
+				// widget onto the wrong visual line when the embed is isolated by blank lines.
+				const IsStartBoundaryInsertion = FromA === ToA && FromA === DecorationFrom;
+				if (IsStartBoundaryInsertion) {
 					return;
 				}
 
@@ -279,6 +239,10 @@ function BuildHtmlEmbedDecorations(
 
 		let Match: RegExpExecArray | null = null;
 		while ((Match = EmbedRegex.exec(DocumentText)) !== null) {
+			if (Match[0].startsWith('![[')) {
+				continue;
+			}
+
 			const EmbedStart = Match.index;
 			const EmbedEnd = EmbedStart + Match[0].length;
 

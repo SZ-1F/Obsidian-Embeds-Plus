@@ -16,7 +16,6 @@ import { HTMLEmbedRenderer } from './HTMLEmbedRenderer';
 import { HTMLFileView } from './HTMLFileView';
 import {
 	CreateHtmlEmbedStateField,
-	CreateProtectionKeymap,
 	HtmlCacheUpdateEffect,
 } from './CodeMirrorExtensions';
 import { CreateLivePreviewSuppressor } from './LivePreviewSuppressor';
@@ -44,8 +43,7 @@ export default class HtmlViewerPlugin extends Plugin {
 		this.registerExtensions(['html', 'mhtml', 'webarchive'], VIEW_TYPE_HTML);
 
 		this.registerEditorExtension(CreateHtmlEmbedStateField(this));
-		this.registerEditorExtension(CreateProtectionKeymap());
-		this.registerEditorExtension(CreateLivePreviewSuppressor());
+		this.registerEditorExtension(CreateLivePreviewSuppressor(this));
 
 		const PostProcessor = this.registerMarkdownPostProcessor((Element, Context) => {
 			const EmbedElements = Element.querySelectorAll('.internal-embed');
