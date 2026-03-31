@@ -14,10 +14,7 @@ import {
 } from './Constants';
 import { HTMLEmbedRenderer } from './HTMLEmbedRenderer';
 import { HTMLFileView } from './HTMLFileView';
-import {
-	CreateHtmlEmbedStateField,
-	HtmlCacheUpdateEffect,
-} from './CodeMirrorExtensions';
+import { HtmlCacheUpdateEffect } from './CodeMirrorExtensions';
 import { CreateLivePreviewSuppressor } from './LivePreviewSuppressor';
 import { SanitiseHtml } from './HTMLSanitiser';
 import { ContentHash } from './Utils';
@@ -42,18 +39,12 @@ export default class HtmlViewerPlugin extends Plugin {
 		this.registerView(VIEW_TYPE_HTML, (Leaf: WorkspaceLeaf) => new HTMLFileView(Leaf, this));
 		this.registerExtensions(['html', 'mhtml', 'webarchive'], VIEW_TYPE_HTML);
 
-		this.registerEditorExtension(CreateHtmlEmbedStateField(this));
 		this.registerEditorExtension(CreateLivePreviewSuppressor(this));
 
 		const PostProcessor = this.registerMarkdownPostProcessor((Element, Context) => {
 			const EmbedElements = Element.querySelectorAll('.internal-embed');
 			for (const EmbedElement of Array.from(EmbedElements)) {
 				this.ProcessReadingViewEmbed(EmbedElement as HTMLElement, Context);
-			}
-
-			const LinkElements = Element.querySelectorAll('a.internal-link');
-			for (const LinkElement of Array.from(LinkElements)) {
-				this.ProcessReadingViewLink(LinkElement as HTMLAnchorElement, Context);
 			}
 		});
 
@@ -128,27 +119,6 @@ export default class HtmlViewerPlugin extends Plugin {
 		}
 
 		const Renderer = new HTMLEmbedRenderer(EmbedElement, File, this);
-		Context.addChild(Renderer);
-	}
-
-	private ProcessReadingViewLink(
-		LinkElement: HTMLAnchorElement,
-		Context: MarkdownPostProcessorContext
-	): void {
-		const FilePath = LinkElement.getAttribute('data-href') || LinkElement.getAttribute('href');
-		if (!FilePath) {
-			return;
-		}
-
-		const File = this.ResolveHtmlFile(FilePath, Context.sourcePath);
-		if (!File) {
-			return;
-		}
-
-		const EmbedWrapper = document.createElement('div');
-		LinkElement.replaceWith(EmbedWrapper);
-
-		const Renderer = new HTMLEmbedRenderer(EmbedWrapper, File, this);
 		Context.addChild(Renderer);
 	}
 
@@ -230,12 +200,8 @@ export default class HtmlViewerPlugin extends Plugin {
 		const FileName = FilePath.split('/').pop() ?? FilePath;
 
 		return (
-			DocumentText.includes(`[[${FileName}]]`) ||
-			DocumentText.includes(`[[${FileName}|`) ||
 			DocumentText.includes(`![[${FileName}]]`) ||
 			DocumentText.includes(`![[${FileName}|`) ||
-			DocumentText.includes(`[[${FilePath}]]`) ||
-			DocumentText.includes(`[[${FilePath}|`) ||
 			DocumentText.includes(`![[${FilePath}]]`) ||
 			DocumentText.includes(`![[${FilePath}|`)
 		);

@@ -1,35 +1,5 @@
 
 
-.html-embed-widget {
-	display: block;
-	width: 100%;
-	height: 890px;
-	vertical-align: top;
-	position: relative;
-	contain: size layout style;
-	overflow: hidden;
-}
-
-.html-embed-widget .html-embed {
-	display: block !important;
-	width: 100%;
-	margin: 1em 0;
-	visibility: visible !important;
-	opacity: 1 !important;
-}
-
-.cm-line .html-embed-widget {
-	display: block !important;
-	width: 100%;
-}
-
-.cm-content .html-embed-widget {
-	display: block !important;
-	width: 100%;
-	visibility: visible !important;
-	opacity: 1 !important;
-}
-
 .markdown-source-view.mod-cm6 .internal-embed[src$=".html"]:not(.html-embed),
 .markdown-source-view.mod-cm6 .internal-embed[alt$=".html"]:not(.html-embed),
 .markdown-source-view.mod-cm6 .internal-embed[src$=".mhtml"]:not(.html-embed),
@@ -212,17 +182,6 @@
 	line-height: 1;
 }
 
-.html-embed-delete-button {
-	color: var(--text-error);
-	opacity: 0.6;
-}
-
-.html-embed-delete-button:hover {
-	background-color: var(--background-modifier-error-hover);
-	color: var(--text-error);
-	opacity: 1;
-}
-
 .html-embed .markdown-embed-content {
 	padding: 0;
 	margin: 0;
@@ -307,33 +266,3 @@ blockquote .html-embed {
 	}
 }
 
-.cm-line:has(.html-embed-widget) .html-embed {
-	display: block !important;
-}
-
-[contenteditable="false"].html-embed-widget {
-	cursor: default;
-	user-select: none;
-}
-
-.html-embed-widget {
-	outline: none !important;
-	caret-color: transparent;
-}
-
-.cm-line:has(.html-embed-widget) {
-	caret-color: transparent;
-}
-
-.cm-embed-block.html-embed-widget + .cm-cursor,
-.cm-cursor + .cm-embed-block.html-embed-widget {
-	display: none !important;
-}
-
-.cm-line .html-embed-widget {
-	line-height: inherit;
-}
-
-.cm-line .html-embed-widget .html-embed {
-	line-height: var(--line-height-normal);
-}

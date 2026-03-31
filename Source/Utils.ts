@@ -1,7 +1,4 @@
-import {
-	HTML_EMBED_LINK_PATTERN,
-	NON_BLOCKING_RENDER_TIMEOUT_MS,
-} from './Constants';
+import { NON_BLOCKING_RENDER_TIMEOUT_MS } from './Constants';
 
 /**
  * Returns a Uint8Array so parser code can handle a single binary type.
@@ -65,6 +62,3 @@ export function ScheduleNonBlockingRender(
 	requestAnimationFrame(Callback);
 }
 
-export function CreateHtmlEmbedRegex(): RegExp {
-	return new RegExp(HTML_EMBED_LINK_PATTERN, 'gi');
-}
