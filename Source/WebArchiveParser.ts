@@ -7,26 +7,20 @@ import { EnsureUint8Array, Uint8ArrayToBase64, Uint8ArrayToString } from './Util
  */
 export function ParseWebArchive(BinaryData: ArrayBuffer): string {
 	try {
-		console.debug('[WebArchive] Starting to parse WebArchive file');
-
 		const PlistData = ParsePlist(BinaryData) as WebArchiveData;
 		if (!PlistData) {
-			console.error('[WebArchive] Failed to parse plist data');
 			return '<html><body><p>Unable to parse WebArchive file. The file may be corrupted.</p></body></html>';
 		}
 
 		const MainResource = PlistData.WebMainResource;
 		if (!MainResource || !MainResource.WebResourceData) {
-			console.error('[WebArchive] No main resource found in WebArchive');
 			return '<html><body><p>Unable to find main HTML content in WebArchive file.</p></body></html>';
 		}
 
 		const MainResourceData = EnsureUint8Array(MainResource.WebResourceData);
 		let HtmlContent = Uint8ArrayToString(MainResourceData);
-		console.debug('[WebArchive] Extracted main HTML content, length:', HtmlContent.length);
 
 		const AllResources = CollectAllResources(PlistData);
-		console.debug(`[WebArchive] Collected ${AllResources.length} total resources (including subframes)`);
 
 		const CssResources: Array<{ Url: string; Content: string }> = [];
 		const ResourceMap = new Map<string, string>();
@@ -51,16 +45,12 @@ export function ParseWebArchive(BinaryData: ArrayBuffer): string {
 			AddResourceVariants(ResourceMap, Url, DataUri);
 		}
 
-		console.debug(`[WebArchive] ${CssResources.length} CSS resources, ${ResourceMap.size} resource mappings`);
-
 		HtmlContent = ReplaceResourceUrls(HtmlContent, ResourceMap);
 		HtmlContent = InjectCssResources(HtmlContent, CssResources, ResourceMap);
 		HtmlContent = HtmlContent.replace(/<base[^>]*>/gi, '');
 
-		console.debug('[WebArchive] Successfully parsed WebArchive file');
 		return HtmlContent;
 	} catch (ErrorValue) {
-		console.error('[WebArchive] Error parsing WebArchive:', ErrorValue);
 		return `<html><body><p>Error parsing WebArchive file: ${ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue)}</p></body></html>`;
 	}
 }
@@ -183,8 +173,6 @@ function FindResourceMatch(HtmlUrl: string, ResourceMap: Map<string, string>): s
  * Handles standard attributes, lazy-loading attributes, srcset variants, and CSS url().
  */
 function ReplaceResourceUrls(Html: string, ResourceMap: Map<string, string>): string {
-	let ReplacementCount = 0;
-
 	Html = Html.replace(
 		/(src|href|data-src|data-href|poster|xlink:href)\s*=\s*(["'])([^"']*)\2/gi,
 		(Match, AttributeName: string, Quote: string, Url: string) => {
@@ -193,7 +181,6 @@ function ReplaceResourceUrls(Html: string, ResourceMap: Map<string, string>): st
 				return Match;
 			}
 
-			ReplacementCount++;
 			return `${AttributeName}=${Quote}${DataUri}${Quote}`;
 		}
 	);
@@ -217,7 +204,6 @@ function ReplaceResourceUrls(Html: string, ResourceMap: Map<string, string>): st
 				}
 
 				HadReplacement = true;
-				ReplacementCount++;
 				return Descriptor ? `${DataUri} ${Descriptor}` : DataUri;
 			});
 
@@ -235,11 +221,9 @@ function ReplaceResourceUrls(Html: string, ResourceMap: Map<string, string>): st
 			return Match;
 		}
 
-		ReplacementCount++;
 		return `url("${DataUri}")`;
 	});
 
-	console.debug(`[WebArchive] Replaced ${ReplacementCount} resource URLs in HTML`);
 	return Html;
 }
 

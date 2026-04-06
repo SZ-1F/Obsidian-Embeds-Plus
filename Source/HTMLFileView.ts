@@ -37,6 +37,7 @@ export class HTMLFileView extends FileView {
 			const HtmlContent = await this.Plugin.GetCachedHtmlContent(File);
 			this.RenderHtml(HtmlContent);
 		} catch (ErrorValue) {
+			this.Plugin.LogPluginError('load file view', ErrorValue, File.path);
 			this.contentEl.innerHTML = `<div style="padding: 20px; color: red;">Error loading file: ${ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue)}</div>`;
 		}
 	}
@@ -57,9 +58,6 @@ export class HTMLFileView extends FileView {
 	private RenderIframeAsync(Iframe: HTMLIFrameElement, HtmlContent: string): void {
 		ScheduleNonBlockingRender(() => {
 			try {
-				console.debug('[HtmlFileView] Rendering iframe content');
-				const RenderStart = performance.now();
-
 				if (this.BlobUrl) {
 					URL.revokeObjectURL(this.BlobUrl);
 				}
@@ -67,18 +65,12 @@ export class HTMLFileView extends FileView {
 				const BlobContent = new Blob([HtmlContent], { type: 'text/html' });
 				this.BlobUrl = URL.createObjectURL(BlobContent);
 				Iframe.src = this.BlobUrl;
-
-				Iframe.addEventListener(
-					'load',
-					() => {
-						const RenderDuration = performance.now() - RenderStart;
-						console.debug(`[HtmlFileView] Rendered iframe in ${RenderDuration.toFixed(2)}ms`);
-					},
-					{ once: true }
-				);
 			} catch (ErrorValue) {
-				console.error('[HtmlFileView] Async rendering failed, using sync fallback:', ErrorValue);
-				this.FallbackSyncRender(Iframe, HtmlContent);
+				try {
+					this.FallbackSyncRender(Iframe, HtmlContent);
+				} catch (FallbackError) {
+					this.Plugin.LogPluginError('render file view', FallbackError, this.file?.path);
+				}
 			}
 		});
 	}
@@ -86,12 +78,16 @@ export class HTMLFileView extends FileView {
 	private FallbackSyncRender(Iframe: HTMLIFrameElement, HtmlContent: string): void {
 		const IframeDocument = Iframe.contentDocument;
 		if (!IframeDocument) {
+			this.Plugin.LogPluginError(
+				'render file view',
+				new Error('Unable to access iframe document'),
+				this.file?.path
+			);
 			this.contentEl.innerHTML =
 				'<div style="padding: 20px; color: red;">Error: Unable to access iframe document.</div>';
 			return;
 		}
 
-		console.debug('[HtmlFileView] Using sync fallback render');
 		IframeDocument.open();
 		IframeDocument.write(HtmlContent);
 		IframeDocument.close();

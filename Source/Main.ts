@@ -32,10 +32,11 @@ export default class HtmlViewerPlugin extends Plugin {
 	PendingLoads: Map<string, Promise<void>> = new Map();
 	WebArchiveParsedCache: Map<string, { Mtime: number; Html: string }> = new Map();
 	DebounceTimers: Map<string, number> = new Map();
+	LoggedRenderedEmbeds: Set<string> = new Set();
+
+	private readonly LogPrefix = '[Embeds-Plus]:';
 
 	async onload() {
-		console.log('Loading HTML Viewer Plugin');
-
 		this.registerView(VIEW_TYPE_HTML, (Leaf: WorkspaceLeaf) => new HTMLFileView(Leaf, this));
 		this.registerExtensions(['html', 'mhtml', 'webarchive'], VIEW_TYPE_HTML);
 
@@ -65,7 +66,35 @@ export default class HtmlViewerPlugin extends Plugin {
 			})
 		);
 
-		console.log('HTML Viewer Plugin loaded');
+	}
+
+	FormatEmbedLabel(FilePath: string): string {
+		const FileName = FilePath.split('/').pop() ?? FilePath;
+		return `"${FileName}"`;
+	}
+
+	LogEmbedRendered(FilePath: string, DurationMs: number): void {
+		console.log(
+			`${this.LogPrefix} ${this.FormatEmbedLabel(FilePath)} embed rendered successfully in ${DurationMs.toFixed(2)}ms.`
+		);
+	}
+
+	LogPluginError(Context: string, ErrorValue: unknown, FilePath?: string): void {
+		const ErrorMessage = ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue);
+		const FileSegment = FilePath ? ` ${this.FormatEmbedLabel(FilePath)}` : '';
+		console.error(`${this.LogPrefix} Failed to ${Context}${FileSegment}: ${ErrorMessage}.`);
+	}
+
+	ShouldLogEmbedRendered(FilePath: string): boolean {
+		return !this.LoggedRenderedEmbeds.has(FilePath);
+	}
+
+	MarkEmbedRenderedLogged(FilePath: string): void {
+		this.LoggedRenderedEmbeds.add(FilePath);
+	}
+
+	ResetEmbedRenderedLogged(FilePath: string): void {
+		this.LoggedRenderedEmbeds.delete(FilePath);
 	}
 
 	ResolveHtmlFile(FilePath: string, SourcePath: string): TFile | null {
@@ -143,16 +172,11 @@ export default class HtmlViewerPlugin extends Plugin {
 
 		const CachedWebArchive = this.WebArchiveParsedCache.get(File.path);
 		if (CachedWebArchive && CachedWebArchive.Mtime === File.stat.mtime) {
-			console.debug('[HTML-Embed] Using cached parsed WebArchive for', File.path);
 			return CachedWebArchive.Html;
 		}
 
-		console.debug('[HTML-Embed] Parsing WebArchive file:', File.path);
-		const ParseStart = performance.now();
 		const BinaryContent = await this.app.vault.readBinary(File);
 		const ParsedHtml = ParseWebArchive(BinaryContent);
-		const ParseDuration = performance.now() - ParseStart;
-		console.debug(`[HTML-Embed] Parsed WebArchive in ${ParseDuration.toFixed(2)}ms`);
 
 		this.WebArchiveParsedCache.set(File.path, {
 			Mtime: File.stat.mtime,
@@ -165,24 +189,27 @@ export default class HtmlViewerPlugin extends Plugin {
 	async LoadAndCacheHtml(File: TFile): Promise<void> {
 		const ExistingLoad = this.PendingLoads.get(File.path);
 		if (ExistingLoad) {
-			console.debug('[HTML-Embed] Skipping duplicate load for', File.path);
 			await ExistingLoad;
 			return;
 		}
 
-		console.debug('[HTML-Embed] Loading HTML file into cache:', File.path);
 		const LoadPromise = (async () => {
 			try {
 				const RawContent = await this.ReadHtmlFileContent(File);
 				const SanitisedContent = SanitiseHtml(RawContent);
+				const PreviousHash = this.HtmlHashCache.get(File.path);
+				const NextHash = ContentHash(SanitisedContent);
 
 				this.HtmlCache.set(File.path, SanitisedContent);
-				this.HtmlHashCache.set(File.path, ContentHash(SanitisedContent));
-				console.debug('[HTML-Embed] Cached HTML file', File.path, 'length:', SanitisedContent.length);
+				this.HtmlHashCache.set(File.path, NextHash);
+
+				if (PreviousHash === undefined || PreviousHash !== NextHash) {
+					this.ResetEmbedRenderedLogged(File.path);
+				}
 
 				this.DispatchTargetedCacheUpdate(File.path);
 			} catch (ErrorValue) {
-				console.error('Error loading HTML file:', ErrorValue);
+				this.LogPluginError('load', ErrorValue, File.path);
 				this.HtmlCache.set(File.path, '');
 				this.HtmlHashCache.set(File.path, ContentHash(''));
 			}
@@ -208,8 +235,6 @@ export default class HtmlViewerPlugin extends Plugin {
 	}
 
 	private DispatchTargetedCacheUpdate(FilePath: string): void {
-		let UpdateCount = 0;
-
 		this.app.workspace.iterateAllLeaves((Leaf) => {
 			if (Leaf.view.getViewType() !== 'markdown') {
 				return;
@@ -229,26 +254,16 @@ export default class HtmlViewerPlugin extends Plugin {
 			CmEditor.dispatch({
 				effects: HtmlCacheUpdateEffect.of(FilePath),
 			});
-			UpdateCount++;
-			console.debug('[HTML-Embed] Dispatched cache update to editor for', FilePath);
 		});
-
-		if (UpdateCount === 0) {
-			console.debug('[HTML-Embed] No editors contain embed for', FilePath, '- no updates dispatched');
-			return;
-		}
-
-		console.debug(`[HTML-Embed] Dispatched cache update to ${UpdateCount} editor(s) for`, FilePath);
 	}
 
 	onunload() {
-		console.log('HTML Viewer Plugin unloaded');
-
 		this.DebounceTimers.forEach((Timer) => window.clearTimeout(Timer));
 		this.HtmlCache.clear();
 		this.HtmlHashCache.clear();
 		this.PendingLoads.clear();
 		this.WebArchiveParsedCache.clear();
 		this.DebounceTimers.clear();
+		this.LoggedRenderedEmbeds.clear();
 	}
 }

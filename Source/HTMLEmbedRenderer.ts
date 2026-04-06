@@ -15,6 +15,7 @@ type HTMLEmbedRenderMode = 'standard' | 'native-live-preview';
 export class HTMLEmbedRenderer extends MarkdownRenderChild {
 	private BlobUrl: string | null = null;
 	private IsDisposed = false;
+	private RenderStartMs = 0;
 
 	constructor(
 		ContainerElement: HTMLElement,
@@ -27,6 +28,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 
 	async onload() {
 		this.IsDisposed = false;
+		this.RenderStartMs = performance.now();
 
 		try {
 			if (!this.Plugin.HtmlCache.has(this.File.path)) {
@@ -44,7 +46,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 				return;
 			}
 
-			console.error('Error rendering HTML embed:', ErrorValue);
+			this.Plugin.LogPluginError('render embed', ErrorValue, this.File.path);
 			this.RenderError(
 				`Error rendering HTML embed: ${ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue)}`
 			);
@@ -168,6 +170,19 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 			}
 
 			try {
+				Iframe.addEventListener(
+					'load',
+					() => {
+						if (this.IsDisposed || !this.Plugin.ShouldLogEmbedRendered(this.File.path)) {
+							return;
+						}
+
+						this.Plugin.MarkEmbedRenderedLogged(this.File.path);
+						this.Plugin.LogEmbedRendered(this.File.path, performance.now() - this.RenderStartMs);
+					},
+					{ once: true }
+				);
+
 				if (this.BlobUrl) {
 					URL.revokeObjectURL(this.BlobUrl);
 				}
@@ -177,8 +192,14 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 				Iframe.src = this.BlobUrl;
 				Iframe.style.visibility = 'visible';
 			} catch (ErrorValue) {
-				console.error('[HtmlEmbedRenderer] Async rendering failed, using sync fallback:', ErrorValue);
-				this.FallbackSyncRender(Iframe, HtmlContent);
+				try {
+					this.FallbackSyncRender(Iframe, HtmlContent);
+				} catch (FallbackError) {
+					this.Plugin.LogPluginError('render embed', FallbackError, this.File.path);
+					this.RenderError(
+						`Error rendering HTML embed: ${FallbackError instanceof Error ? FallbackError.message : String(FallbackError)}`
+					);
+				}
 			}
 		});
 	}
