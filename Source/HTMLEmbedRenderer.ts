@@ -5,6 +5,12 @@ import {
 } from './Constants';
 import type HtmlViewerPlugin from './Main';
 import { ScheduleNonBlockingRender } from './Utils';
+import {
+	StartStage,
+	EndStage,
+	RecordStage,
+	LogPerformanceSummary,
+} from './Performance';
 
 const OpenIconSvg =
 	'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>';
@@ -13,9 +19,10 @@ const NativeLivePreviewEmbedClass = 'html-embed-native-live-preview';
 type HTMLEmbedRenderMode = 'standard' | 'native-live-preview';
 
 export class HTMLEmbedRenderer extends MarkdownRenderChild {
-	private BlobUrl: string | null = null;
 	private IsDisposed = false;
 	private RenderStartMs = 0;
+	private UsedCachedBlob = false;
+ 	private BlobUrlChecked = false;
 
 	constructor(
 		ContainerElement: HTMLElement,
@@ -29,18 +36,24 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 	async onload() {
 		this.IsDisposed = false;
 		this.RenderStartMs = performance.now();
+		StartStage(this.File.path, 'totalRender');
 
 		try {
-			if (!this.Plugin.HtmlCache.has(this.File.path)) {
+			const CachedHash = this.Plugin.GetContentHash(this.File.path);
+			if (!CachedHash) {
 				this.RenderEmbed('', true);
 			}
 
-			const HtmlContent = await this.Plugin.GetCachedHtmlContent(this.File);
+			const Entry = await this.Plugin.GetCachedContent(this.File);
 			if (this.IsDisposed || !this.containerEl.isConnected) {
 				return;
 			}
 
-			this.RenderEmbed(HtmlContent);
+			const ExistingBlobUrl = this.Plugin.GetOrCreateBlobUrl(this.File.path);
+			this.UsedCachedBlob = !!ExistingBlobUrl;
+			this.BlobUrlChecked = true;
+
+			this.RenderEmbed(Entry.Html);
 		} catch (ErrorValue) {
 			if (this.IsDisposed) {
 				return;
@@ -121,7 +134,9 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		HtmlContent: string,
 		IsLoading: boolean
 	): void {
-		const IframeContainer = ContainerElement.createDiv({ cls: 'html-embed-iframe-container' });
+		const IframeContainer = ContainerElement.createDiv({
+			cls: 'html-embed-iframe-container',
+		});
 		IframeContainer.style.height = `${HTML_EMBED_HEIGHT_PX}px`;
 		IframeContainer.style.position = 'relative';
 
@@ -164,50 +179,78 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 	}
 
 	private RenderIframeAsync(Iframe: HTMLIFrameElement, HtmlContent: string): void {
+		const CachedBlobUrl = this.Plugin.GetOrCreateBlobUrl(this.File.path);
+		this.UsedCachedBlob = this.BlobUrlChecked || !!CachedBlobUrl;
+
+		if (CachedBlobUrl) {
+			this.RenderWithBlobUrl(Iframe, CachedBlobUrl);
+			return;
+		}
+
 		ScheduleNonBlockingRender(() => {
 			if (this.IsDisposed || !Iframe.isConnected) {
 				return;
 			}
 
-			try {
-				Iframe.addEventListener(
-					'load',
-					() => {
-						if (this.IsDisposed || !this.Plugin.ShouldLogEmbedRendered(this.File.path)) {
-							return;
-						}
+			StartStage(this.File.path, 'createBlob');
+			const NewBlobUrl = this.Plugin.GetOrCreateBlobUrl(this.File.path);
+			RecordStage(
+				this.File.path,
+				'createBlob',
+				EndStage(this.File.path, 'createBlob')
+			);
 
-						this.Plugin.MarkEmbedRenderedLogged(this.File.path);
-						this.Plugin.LogEmbedRendered(this.File.path, performance.now() - this.RenderStartMs);
-					},
-					{ once: true }
-				);
-
-				if (this.BlobUrl) {
-					URL.revokeObjectURL(this.BlobUrl);
-				}
-
-				const BlobContent = new Blob([HtmlContent], { type: 'text/html' });
-				this.BlobUrl = URL.createObjectURL(BlobContent);
-				Iframe.src = this.BlobUrl;
-				Iframe.style.visibility = 'visible';
-			} catch (ErrorValue) {
-				try {
-					this.FallbackSyncRender(Iframe, HtmlContent);
-				} catch (FallbackError) {
-					this.Plugin.LogPluginError('render embed', FallbackError, this.File.path);
-					this.RenderError(
-						`Error rendering HTML embed: ${FallbackError instanceof Error ? FallbackError.message : String(FallbackError)}`
-					);
-				}
+			if (NewBlobUrl) {
+				this.RenderWithBlobUrl(Iframe, NewBlobUrl);
+			} else {
+				this.FallbackSyncRender(Iframe, HtmlContent);
 			}
 		});
+	}
+
+	private RenderWithBlobUrl(Iframe: HTMLIFrameElement, BlobUrl: string): void {
+		if (this.IsDisposed || !Iframe.isConnected) {
+			return;
+		}
+
+		StartStage(this.File.path, 'iframeLoad');
+
+		Iframe.addEventListener(
+			'load',
+			() => {
+				RecordStage(
+					this.File.path,
+					'iframeLoad',
+					EndStage(this.File.path, 'iframeLoad')
+				);
+
+				if (this.IsDisposed || !this.Plugin.ShouldLogEmbedRendered(this.File.path)) {
+					return;
+				}
+
+				this.Plugin.MarkEmbedRenderedLogged(this.File.path);
+				const TotalMs = performance.now() - this.RenderStartMs;
+				this.Plugin.LogEmbedRendered(this.File.path, TotalMs);
+
+					const CacheType = this.UsedCachedBlob ? 'warm (blob cached)' : 'cold';
+				LogPerformanceSummary(
+					this.File.path,
+					`render complete (${CacheType})`
+				);
+			},
+			{ once: true }
+		);
+
+		Iframe.src = BlobUrl;
+		Iframe.style.visibility = 'visible';
 	}
 
 	private FallbackSyncRender(Iframe: HTMLIFrameElement, HtmlContent: string): void {
 		const IframeDocument = Iframe.contentDocument;
 		if (!IframeDocument) {
-			this.RenderError('Error rendering HTML embed: Unable to access iframe document.');
+			this.RenderError(
+				'Error rendering HTML embed: Unable to access iframe document.'
+			);
 			return;
 		}
 
@@ -236,10 +279,6 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 
 	onunload() {
 		this.IsDisposed = true;
-
-		if (this.BlobUrl) {
-			URL.revokeObjectURL(this.BlobUrl);
-			this.BlobUrl = null;
-		}
+		// The plugin owns blob URL cleanup.
 	}
 }

@@ -3,6 +3,154 @@ import { WebArchiveData, WebResource } from './Interfaces';
 import { EnsureUint8Array, Uint8ArrayToBase64, Uint8ArrayToString } from './Utils';
 
 /**
+ * Resource entry with lazy base64 encoding.
+ * Stores raw bytes and only converts to data URI when needed.
+ */
+interface ResourceEntry {
+	Url: string;
+	MimeType: string;
+	Data: Uint8Array;
+	Encoding?: string;
+	IsCss: boolean;
+	CssContent?: string;
+	DataUri?: string; 
+}
+
+const LinkTagPattern = /<link\b[^\u003e]*>/gi;
+const LinkRelPattern = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s\u003e]+))/i;
+const StylesheetRel = 'stylesheet';
+
+/**
+ * Stores archive resources in the forms needed for later lookup.
+ */
+class ResourceIndex {
+	private readonly ResourcesByUrl = new Map<string, ResourceEntry>();
+	private readonly CssResources: Array<{ Url: string; Content: string }> = [];
+
+	addResource(Resource: WebResource): void {
+		if (
+			!Resource.WebResourceURL ||
+			!Resource.WebResourceData ||
+			!Resource.WebResourceMIMEType
+		) {
+			return;
+		}
+
+		const Url = Resource.WebResourceURL;
+		const MimeType = Resource.WebResourceMIMEType;
+		const Data = EnsureUint8Array(Resource.WebResourceData);
+		const IsCss = MimeType === 'text/css';
+
+		// CSS is decoded here because it is inlined later.
+		let CssContent: string | undefined;
+		if (IsCss) {
+			CssContent = Uint8ArrayToString(Data, ResolveTextEncoding(Resource));
+			this.CssResources.push({ Url, Content: CssContent });
+		}
+
+		const Entry: ResourceEntry = {
+			Url,
+			MimeType,
+			Data,
+			Encoding: ResolveTextEncoding(Resource),
+			IsCss,
+			CssContent,
+		};
+
+		const NormalisedUrl = NormaliseUrl(Url);
+		this.ResourcesByUrl.set(NormalisedUrl, Entry);
+
+		if (Url.startsWith('https://')) {
+			this.ResourcesByUrl.set(NormaliseUrl(Url.substring(6)), Entry);
+		} else if (Url.startsWith('http://')) {
+			this.ResourcesByUrl.set(NormaliseUrl(Url.substring(5)), Entry);
+		}
+
+		try {
+			const DecodedUrl = decodeURIComponent(Url);
+			if (DecodedUrl !== Url) {
+				this.ResourcesByUrl.set(NormaliseUrl(DecodedUrl), Entry);
+			}
+		} catch {
+		}
+
+		const UrlParts = Url.split('/');
+		const Filename = UrlParts[UrlParts.length - 1];
+		if (Filename && Filename !== Url) {
+			const CleanFilename = Filename.split('?')[0];
+			this.ResourcesByUrl.set(NormaliseUrl(CleanFilename), Entry);
+		}
+	}
+
+	findResource(HtmlUrl: string): ResourceEntry | null {
+		if (HtmlUrl.startsWith('data:')) {
+			return null;
+		}
+
+		const NormalisedHtmlUrl = NormaliseUrl(HtmlUrl);
+		let Entry = this.ResourcesByUrl.get(NormalisedHtmlUrl);
+		if (Entry) {
+			return Entry;
+		}
+
+		if (HtmlUrl.startsWith('//')) {
+			Entry = this.ResourcesByUrl.get(NormaliseUrl(`https:${HtmlUrl}`));
+			if (Entry) {
+				return Entry;
+			}
+		}
+
+		try {
+			const DecodedHtmlUrl = NormaliseUrl(decodeURIComponent(HtmlUrl));
+			if (DecodedHtmlUrl !== NormalisedHtmlUrl) {
+				Entry = this.ResourcesByUrl.get(DecodedHtmlUrl);
+				if (Entry) {
+					return Entry;
+				}
+			}
+		} catch {
+		}
+
+		const Filename = HtmlUrl.split('/').pop()?.split('?')[0];
+		if (Filename) {
+			Entry = this.ResourcesByUrl.get(NormaliseUrl(Filename));
+			if (Entry) {
+				return Entry;
+			}
+		}
+
+		// Try path suffixes only after direct matches fail.
+		const UrlParts = HtmlUrl.split('/');
+		for (let Index = 1; Index < UrlParts.length - 1; Index++) {
+			const SuffixPath = UrlParts.slice(Index).join('/');
+			if (SuffixPath) {
+				Entry = this.ResourcesByUrl.get(NormaliseUrl(SuffixPath));
+				if (Entry) {
+					return Entry;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	getDataUri(Entry: ResourceEntry): string {
+		if (Entry.DataUri !== undefined) {
+			return Entry.DataUri;
+		}
+
+		// Only build the data URI if this resource is actually used.
+		const Base64Data = Uint8ArrayToBase64(Entry.Data);
+		Entry.DataUri = `data:${Entry.MimeType};base64,${Base64Data}`;
+		return Entry.DataUri;
+	}
+
+	getCssResources(): Array<{ Url: string; Content: string }> {
+		return this.CssResources;
+	}
+}
+
+/**
  * Parses a WebArchive file and extracts the main HTML content with embedded resources.
  */
 export function ParseWebArchive(BinaryData: ArrayBuffer): string {
@@ -17,40 +165,28 @@ export function ParseWebArchive(BinaryData: ArrayBuffer): string {
 			return '<html><body><p>Unable to find main HTML content in WebArchive file.</p></body></html>';
 		}
 
+		const Index = new ResourceIndex();
+
+		const AllResources = CollectAllResources(PlistData);
+		for (const Resource of AllResources) {
+			Index.addResource(Resource);
+		}
+
 		const MainResourceData = EnsureUint8Array(MainResource.WebResourceData);
 		let HtmlContent = Uint8ArrayToString(
 			MainResourceData,
 			ResolveTextEncoding(MainResource)
 		);
 
-		const AllResources = CollectAllResources(PlistData);
+		HtmlContent = ReplaceResourceUrls(HtmlContent, Index);
 
-		const CssResources: Array<{ Url: string; Content: string }> = [];
-		const ResourceMap = new Map<string, string>();
+		HtmlContent = InjectCssResources(HtmlContent, Index);
 
-		for (const Resource of AllResources) {
-			if (!Resource.WebResourceURL || !Resource.WebResourceData || !Resource.WebResourceMIMEType) {
-				continue;
-			}
+		// Remove link tags that cause blocked network/CSP noise.
+		HtmlContent = RemoveResidualLinkTags(HtmlContent);
 
-			const Url = Resource.WebResourceURL;
-			const MimeType = Resource.WebResourceMIMEType;
-			const Data = EnsureUint8Array(Resource.WebResourceData);
-
-			if (MimeType === 'text/css') {
-				const CssContent = Uint8ArrayToString(Data, ResolveTextEncoding(Resource));
-				CssResources.push({ Url, Content: CssContent });
-				continue;
-			}
-
-			const Base64Data = Uint8ArrayToBase64(Data);
-			const DataUri = `data:${MimeType};base64,${Base64Data}`;
-			AddResourceVariants(ResourceMap, Url, DataUri);
-		}
-
-		HtmlContent = ReplaceResourceUrls(HtmlContent, ResourceMap);
-		HtmlContent = InjectCssResources(HtmlContent, CssResources, ResourceMap);
-		HtmlContent = HtmlContent.replace(/<base[^>]*>/gi, '');
+		// Remove base tags to prevent navigation issues.
+		HtmlContent = HtmlContent.replace(/<base[^\u003e]*>/gi, '');
 
 		return HtmlContent;
 	} catch (ErrorValue) {
@@ -73,8 +209,7 @@ function ResolveTextEncoding(Resource: WebResource): string | undefined {
 }
 
 /**
- * Recursively collects all subresources from the archive, including
- * resources nested inside WebSubframeArchives.
+ * Recursively collects all subresources from the archive.
  */
 function CollectAllResources(Archive: WebArchiveData): WebResource[] {
 	const Resources: WebResource[] = [];
@@ -83,7 +218,7 @@ function CollectAllResources(Archive: WebArchiveData): WebResource[] {
 		Resources.push(...Archive.WebSubresources);
 	}
 
-	// Recurse into subframe archives (for example iframes on the original page).
+	// Recurse into subframe archives.
 	if (Archive.WebSubframeArchives) {
 		for (const Subframe of Archive.WebSubframeArchives) {
 			Resources.push(...CollectAllResources(Subframe));
@@ -94,50 +229,13 @@ function CollectAllResources(Archive: WebArchiveData): WebResource[] {
 }
 
 /**
- * Adds multiple URL variants to the resource map for flexible matching.
- * Handles absolute, protocol-relative, decoded, filename-only, and path-suffix forms.
- */
-function AddResourceVariants(MapValue: Map<string, string>, Url: string, DataUri: string): void {
-	const NormalisedUrl = NormaliseUrl(Url);
-	MapValue.set(NormalisedUrl, DataUri);
-
-	if (Url.startsWith('https://')) {
-		MapValue.set(NormaliseUrl(Url.substring(6)), DataUri);
-	} else if (Url.startsWith('http://')) {
-		MapValue.set(NormaliseUrl(Url.substring(5)), DataUri);
-	}
-
-	try {
-		const DecodedUrl = decodeURIComponent(Url);
-		if (DecodedUrl !== Url) {
-			MapValue.set(NormaliseUrl(DecodedUrl), DataUri);
-		}
-	} catch {
-	}
-
-	const UrlParts = Url.split('/');
-	const Filename = UrlParts[UrlParts.length - 1];
-	if (Filename && Filename !== Url) {
-		const CleanFilename = Filename.split('?')[0];
-		MapValue.set(NormaliseUrl(CleanFilename), DataUri);
-	}
-
-	for (let Index = 1; Index < UrlParts.length - 1; Index++) {
-		const SuffixPath = UrlParts.slice(Index).join('/');
-		if (SuffixPath && SuffixPath !== Url) {
-			MapValue.set(NormaliseUrl(SuffixPath), DataUri);
-		}
-	}
-}
-
-/**
  * Normalises a URL for consistent matching.
  * Strips query parameters, fragments, and size prefixes/suffixes.
  */
 function NormaliseUrl(Url: string): string {
 	let NormalisedUrl = Url.split('?')[0].split('#')[0];
 
-	// Remove Wikimedia-style size prefixes/suffixes to broaden matching.
+	// Remove Wikimedia-style size prefixes/suffixes.
 	NormalisedUrl = NormalisedUrl
 		.replace(/(^|\/)\d+px-/, '$1')
 		.replace(/-\d+px(?=\.[^.]+$)/, '');
@@ -146,58 +244,18 @@ function NormaliseUrl(Url: string): string {
 }
 
 /**
- * Finds a matching data URI for a given HTML URL from the resource map.
- * Tries normalised, protocol-relative, percent-decoded, and filename-only matching.
+ * Rewrites archived resource references so the HTML can stand on its own.
  */
-function FindResourceMatch(HtmlUrl: string, ResourceMap: Map<string, string>): string | null {
-	if (HtmlUrl.startsWith('data:')) {
-		return null;
-	}
-
-	const NormalisedHtmlUrl = NormaliseUrl(HtmlUrl);
-	if (ResourceMap.has(NormalisedHtmlUrl)) {
-		return ResourceMap.get(NormalisedHtmlUrl) ?? null;
-	}
-
-	if (HtmlUrl.startsWith('//')) {
-		const UrlWithProtocol = NormaliseUrl(`https:${HtmlUrl}`);
-		if (ResourceMap.has(UrlWithProtocol)) {
-			return ResourceMap.get(UrlWithProtocol) ?? null;
-		}
-	}
-
-	try {
-		const DecodedHtmlUrl = NormaliseUrl(decodeURIComponent(HtmlUrl));
-		if (DecodedHtmlUrl !== NormalisedHtmlUrl && ResourceMap.has(DecodedHtmlUrl)) {
-			return ResourceMap.get(DecodedHtmlUrl) ?? null;
-		}
-	} catch {
-	}
-
-	const Filename = HtmlUrl.split('/').pop()?.split('?')[0];
-	if (Filename) {
-		const NormalisedFilename = NormaliseUrl(Filename);
-		if (ResourceMap.has(NormalisedFilename)) {
-			return ResourceMap.get(NormalisedFilename) ?? null;
-		}
-	}
-
-	return null;
-}
-
-/**
- * Replaces resource URLs in HTML with data URIs.
- * Handles standard attributes, lazy-loading attributes, srcset variants, and CSS url().
- */
-function ReplaceResourceUrls(Html: string, ResourceMap: Map<string, string>): string {
+function ReplaceResourceUrls(Html: string, Index: ResourceIndex): string {
 	Html = Html.replace(
 		/(src|href|data-src|data-href|poster|xlink:href)\s*=\s*(["'])([^"']*)\2/gi,
 		(Match, AttributeName: string, Quote: string, Url: string) => {
-			const DataUri = FindResourceMatch(Url, ResourceMap);
-			if (!DataUri) {
+			const Entry = Index.findResource(Url);
+			if (!Entry) {
 				return Match;
 			}
 
+			const DataUri = Index.getDataUri(Entry);
 			return `${AttributeName}=${Quote}${DataUri}${Quote}`;
 		}
 	);
@@ -215,12 +273,13 @@ function ReplaceResourceUrls(Html: string, ResourceMap: Map<string, string>): st
 				const Pieces = TrimmedPart.split(/\s+/);
 				const Url = Pieces[0];
 				const Descriptor = Pieces.slice(1).join(' ');
-				const DataUri = FindResourceMatch(Url, ResourceMap);
-				if (!DataUri) {
+				const Entry = Index.findResource(Url);
+				if (!Entry) {
 					return TrimmedPart;
 				}
 
 				HadReplacement = true;
+				const DataUri = Index.getDataUri(Entry);
 				return Descriptor ? `${DataUri} ${Descriptor}` : DataUri;
 			});
 
@@ -232,81 +291,195 @@ function ReplaceResourceUrls(Html: string, ResourceMap: Map<string, string>): st
 		}
 	);
 
-	Html = Html.replace(/url\(\s*(["']?)([^)"']*)\1\s*\)/gi, (Match, _Quote: string, Url: string) => {
-		const DataUri = FindResourceMatch(Url, ResourceMap);
-		if (!DataUri) {
-			return Match;
-		}
+	Html = Html.replace(
+		/url\(\s*(["']?)([^)"']*)\1\s*\)/gi,
+		(Match, _Quote: string, Url: string) => {
+			const Entry = Index.findResource(Url);
+			if (!Entry) {
+				return Match;
+			}
 
-		return `url("${DataUri}")`;
-	});
+			const DataUri = Index.getDataUri(Entry);
+			return `url("${DataUri}")`;
+		}
+	);
 
 	return Html;
 }
 
 /**
- * Injects CSS resources as inline <style> tags, replacing any matching link tags.
- * CSS content also has its own url() references replaced.
+ * Inlines archived stylesheets so linked CSS is still available offline.
  */
-function InjectCssResources(
-	Html: string,
-	CssResources: Array<{ Url: string; Content: string }>,
-	ResourceMap: Map<string, string>
-): string {
+function InjectCssResources(Html: string, Index: ResourceIndex): string {
+	const CssResources = Index.getCssResources();
 	if (CssResources.length === 0) {
 		return Html;
 	}
 
+	// Normalise CSS URLs up front before scanning link tags.
+	const CssUrlSet = new Set(CssResources.map((r) => NormaliseUrl(r.Url)));
+
+	const LinkTagPattern = /<link[^\u003e]*?\s+href=["']([^"']*)["'][^\u003e]*?>/gi;
+	const Matches: Array<{ FullMatch: string; Url: string }> = [];
+
+	let Match;
+	while ((Match = LinkTagPattern.exec(Html)) !== null) {
+		const Url = Match[1];
+		if (CssUrlSet.has(NormaliseUrl(Url))) {
+			Matches.push({ FullMatch: Match[0], Url });
+		}
+	}
+
+	if (Matches.length === 0) {
+		return InjectUnmatchedCss(Html, CssResources, Index);
+	}
+
 	let Result = Html;
-	const UnmatchedCssBlocks: string[] = [];
+	const UnmatchedCss: Array<{ Url: string; Content: string }> = [];
 
-	for (const { Url, Content: CssContent } of CssResources) {
-		const ProcessedCss = CssContent.replace(
-			/url\(\s*(["']?)([^)"']*)\1\s*\)/gi,
-			(Match, _Quote: string, CssUrl: string) => {
-				const DataUri = FindResourceMatch(CssUrl, ResourceMap);
-				return DataUri ? `url("${DataUri}")` : Match;
-			}
-		);
-
-		const EscapedUrl = Url.replace(/[.*+?^${}()|[\\\]]/g, '\\$&');
-		const LinkTagPattern = new RegExp(
-			`<link[^>]*?\\s+href=["']${EscapedUrl}["'][^>]*?>`,
-			'gi'
-		);
-
-		if (LinkTagPattern.test(Result)) {
-			LinkTagPattern.lastIndex = 0;
-			Result = Result.replace(LinkTagPattern, `<style type="text/css">\n${ProcessedCss}\n</style>`);
+	for (const { Url } of Matches) {
+		const Entry = Index.findResource(Url);
+		if (!Entry?.CssContent) {
 			continue;
 		}
 
-		UnmatchedCssBlocks.push(`<style type="text/css">\n${ProcessedCss}\n</style>`);
+		const ProcessedCss = ProcessCssContent(Entry.CssContent, Index);
+
+		const EscapedUrl = Url.replace(/[.*+?^${}()|[\\\]]/g, '\\$&');
+		const SpecificPattern = new RegExp(
+			`<link[^\u003e]*?\\s+href=["']${EscapedUrl}["'][^\u003e]*?>`,
+			'gi'
+		);
+		Result = Result.replace(
+			SpecificPattern,
+			`<style type="text/css"\u003e\n${ProcessedCss}\n</style>`
+		);
 	}
 
-	if (UnmatchedCssBlocks.length > 0) {
-		const CombinedCssBlocks = UnmatchedCssBlocks.join('\n');
-		const HeadMatch = Result.match(/<head[^>]*>/i);
-
-		if (HeadMatch) {
-			const InsertPosition = Result.indexOf(HeadMatch[0]) + HeadMatch[0].length;
-			Result =
-				Result.substring(0, InsertPosition) +
-				'\n' +
-				CombinedCssBlocks +
-				'\n' +
-				Result.substring(InsertPosition);
-		} else {
-			const HtmlMatch = Result.match(/<html[^>]*>/i);
-			if (HtmlMatch) {
-				const InsertPosition = Result.indexOf(HtmlMatch[0]) + HtmlMatch[0].length;
-				Result =
-					Result.substring(0, InsertPosition) +
-					`\n<head>\n${CombinedCssBlocks}\n</head>\n` +
-					Result.substring(InsertPosition);
-			}
+	for (const { Url, Content } of CssResources) {
+		const WasMatched = Matches.some((m) => NormaliseUrl(m.Url) === NormaliseUrl(Url));
+		if (!WasMatched) {
+			UnmatchedCss.push({ Url, Content });
 		}
 	}
 
+	if (UnmatchedCss.length > 0) {
+		Result = InjectUnmatchedCss(Result, UnmatchedCss, Index);
+	}
+
 	return Result;
+}
+
+/**
+ * Injects unmatched CSS blocks into the document head or creates one.
+ */
+function InjectUnmatchedCss(
+	Html: string,
+	CssResources: Array<{ Url: string; Content: string }>,
+	Index: ResourceIndex
+): string {
+	const CombinedCssBlocks = CssResources
+		.map(({ Content }) => `<style type="text/css"\u003e\n${ProcessCssContent(Content, Index)}\n</style>`)
+		.join('\n');
+
+	const HeadMatch = Html.match(/<head[^\u003e]*>/i);
+	if (HeadMatch) {
+		const InsertPosition = Html.indexOf(HeadMatch[0]) + HeadMatch[0].length;
+		return (
+			Html.substring(0, InsertPosition) +
+			'\n' +
+			CombinedCssBlocks +
+			'\n' +
+			Html.substring(InsertPosition)
+		);
+	}
+
+	const HtmlMatch = Html.match(/<html[^\u003e]*>/i);
+	if (HtmlMatch) {
+		const InsertPosition = Html.indexOf(HtmlMatch[0]) + HtmlMatch[0].length;
+		return (
+			Html.substring(0, InsertPosition) +
+			`\n<head>\n${CombinedCssBlocks}\n</head>\n` +
+			Html.substring(InsertPosition)
+		);
+	}
+
+	// Insert styles inside the body if there is no head element.
+	const BodyMatch = Html.match(/<body[^\u003e]*>/i);
+	if (BodyMatch) {
+		const InsertPosition = Html.indexOf(BodyMatch[0]) + BodyMatch[0].length;
+		return (
+			Html.substring(0, InsertPosition) +
+			'\n' +
+			CombinedCssBlocks +
+			'\n' +
+			Html.substring(InsertPosition)
+		);
+	}
+
+	return CombinedCssBlocks + '\n' + Html;
+}
+
+function ProcessCssContent(
+	CssContent: string,
+	Index: ResourceIndex,
+	VisitedCssUrls: Set<string> = new Set()
+): string {
+	const ProcessedImports = CssContent.replace(
+		/@import\s+(?:url\(\s*)?(["']?)([^"')\s;]+)\1\s*\)?[^;]*;/gi,
+		(_ImportStatement, _Quote: string, ImportUrl: string) => {
+			const ImportEntry = Index.findResource(ImportUrl);
+			if (!ImportEntry?.CssContent) {
+				return '';
+			}
+
+			const ImportKey = NormaliseUrl(ImportEntry.Url);
+			if (VisitedCssUrls.has(ImportKey)) {
+				return '';
+			}
+
+			VisitedCssUrls.add(ImportKey);
+
+			const ImportedCss = ProcessCssContent(
+				ImportEntry.CssContent,
+				Index,
+				VisitedCssUrls
+			);
+			return ImportedCss.length > 0 ? `${ImportedCss}\n` : '';
+		}
+	);
+
+	return ProcessedImports.replace(
+		/url\(\s*(["']?)([^)"']*)\1\s*\)/gi,
+		(Match, _Quote: string, CssUrl: string) => {
+			const RefEntry = Index.findResource(CssUrl);
+			if (!RefEntry) {
+				return Match;
+			}
+
+			const DataUri = Index.getDataUri(RefEntry);
+			return `url("${DataUri}")`;
+		}
+	);
+}
+
+function RemoveResidualLinkTags(Html: string): string {
+	return Html.replace(LinkTagPattern, (LinkTag) => {
+		const RelMatch = LinkTag.match(LinkRelPattern);
+		if (!RelMatch) {
+			return LinkTag;
+		}
+
+		const RelValue = RelMatch[1] ?? RelMatch[2] ?? RelMatch[3] ?? '';
+		const RelTokens = RelValue
+			.toLowerCase()
+			.split(/\s+/)
+			.filter((Token) => Token.length > 0);
+
+		if (RelTokens.includes(StylesheetRel)) {
+			return '';
+		}
+
+		return LinkTag;
+	});
 }

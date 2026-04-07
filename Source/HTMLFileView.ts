@@ -9,7 +9,7 @@ import { ScheduleNonBlockingRender } from './Utils';
 
 export class HTMLFileView extends FileView {
 	private readonly Plugin: HtmlViewerPlugin;
-	private BlobUrl: string | null = null;
+	private CurrentFilePath: string | null = null;
 
 	constructor(Leaf: WorkspaceLeaf, Plugin: HtmlViewerPlugin) {
 		super(Leaf);
@@ -33,9 +33,11 @@ export class HTMLFileView extends FileView {
 	}
 
 	async onLoadFile(File: TFile) {
+		this.CurrentFilePath = File.path;
+
 		try {
-			const HtmlContent = await this.Plugin.GetCachedHtmlContent(File);
-			this.RenderHtml(HtmlContent);
+			const Entry = await this.Plugin.GetCachedContent(File);
+			this.RenderHtml(Entry.Html);
 		} catch (ErrorValue) {
 			this.Plugin.LogPluginError('load file view', ErrorValue, File.path);
 			this.contentEl.innerHTML = `<div style="padding: 20px; color: red;">Error loading file: ${ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue)}</div>`;
@@ -56,20 +58,34 @@ export class HTMLFileView extends FileView {
 	}
 
 	private RenderIframeAsync(Iframe: HTMLIFrameElement, HtmlContent: string): void {
+		if (this.CurrentFilePath) {
+			const CachedBlobUrl = this.Plugin.GetOrCreateBlobUrl(this.CurrentFilePath);
+			if (CachedBlobUrl) {
+				Iframe.src = CachedBlobUrl;
+				return;
+			}
+		}
+
 		ScheduleNonBlockingRender(() => {
 			try {
-				if (this.BlobUrl) {
-					URL.revokeObjectURL(this.BlobUrl);
+				if (this.CurrentFilePath) {
+					const BlobUrl = this.Plugin.GetOrCreateBlobUrl(this.CurrentFilePath);
+					if (BlobUrl) {
+						Iframe.src = BlobUrl;
+						return;
+					}
 				}
 
-				const BlobContent = new Blob([HtmlContent], { type: 'text/html' });
-				this.BlobUrl = URL.createObjectURL(BlobContent);
-				Iframe.src = this.BlobUrl;
+				this.FallbackSyncRender(Iframe, HtmlContent);
 			} catch (ErrorValue) {
 				try {
 					this.FallbackSyncRender(Iframe, HtmlContent);
 				} catch (FallbackError) {
-					this.Plugin.LogPluginError('render file view', FallbackError, this.file?.path);
+					this.Plugin.LogPluginError(
+						'render file view',
+						FallbackError,
+						this.file?.path
+					);
 				}
 			}
 		});
@@ -94,9 +110,7 @@ export class HTMLFileView extends FileView {
 	}
 
 	async onUnloadFile(_File: TFile) {
-		if (this.BlobUrl) {
-			URL.revokeObjectURL(this.BlobUrl);
-			this.BlobUrl = null;
-		}
+		// The plugin owns blob URL cleanup.
+		this.CurrentFilePath = null;
 	}
 }

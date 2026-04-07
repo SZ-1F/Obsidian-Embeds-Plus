@@ -110,7 +110,7 @@ export function CreateLivePreviewSuppressor(Plugin: HtmlViewerPlugin) {
 
 					SeenEmbeds.add(Embed);
 
-					const ContentHashValue = Plugin.HtmlHashCache.get(File.path) ?? 'loading';
+					const ContentHashValue = Plugin.GetContentHash(File.path) ?? 'loading';
 					const ExistingEmbed = this.NativeHtmlEmbeds.get(Embed);
 					const HasRenderedMarkup =
 						Embed.classList.contains('html-embed') &&

@@ -5,16 +5,20 @@ const AnimationOverrideCss = [
 ].join(' ');
 
 const LinkAttributes = ['href', 'xlink:href'] as const;
+const LinkHintRels = new Set(['preload', 'modulepreload', 'prefetch', 'prerender', 'preconnect', 'dns-prefetch']);
+const LinkTagPattern = /<link\b[^\u003e]*>/gi;
+const LinkRelPattern = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s\u003e]+))/i;
 
 export async function SanitiseHtml(Html: string): Promise<string> {
 	const Parser = new DOMParser();
 	const DocumentValue = Parser.parseFromString(Html, 'text/html');
 
 	RemoveExecutableContent(DocumentValue);
-	SanitiseLinks(DocumentValue);
-	FreezeMediaElements(DocumentValue);
-	FreezeAnimatedSvg(DocumentValue);
+
+	SanitiseAllElements(DocumentValue);
+
 	await FreezeGifImages(DocumentValue);
+
 	InjectAnimationOverride(DocumentValue);
 
 	return DocumentValue.documentElement.outerHTML;
@@ -31,64 +35,63 @@ function RemoveExecutableContent(DocumentValue: Document): void {
 
 		ElementValue.remove();
 	});
+}
 
-	DocumentValue.querySelectorAll('*').forEach((ElementValue) => {
+/**
+ * Keeps link and media cleanup together so new rules are harder to miss.
+ */
+function SanitiseAllElements(DocumentValue: Document): void {
+	const AllElements = Array.from(DocumentValue.querySelectorAll('*'));
+
+	for (const ElementValue of AllElements) {
+		if (SanitiseLinkHint(ElementValue)) {
+			ElementValue.remove();
+			continue;
+		}
+
 		for (const AttributeName of ElementValue.getAttributeNames()) {
 			if (AttributeName.toLowerCase().startsWith('on')) {
 				ElementValue.removeAttribute(AttributeName);
 			}
 		}
-	});
-}
 
-function SanitiseLinks(DocumentValue: Document): void {
-	DocumentValue.querySelectorAll('*').forEach((ElementValue) => {
 		for (const AttributeName of LinkAttributes) {
 			const AttributeValue = ElementValue.getAttribute(AttributeName);
-			if (!AttributeValue) {
-				continue;
-			}
-
-			if (IsJavascriptUrl(AttributeValue)) {
+			if (AttributeValue && IsJavascriptUrl(AttributeValue)) {
 				ElementValue.removeAttribute(AttributeName);
 			}
 		}
-	});
 
-	DocumentValue.querySelectorAll('a').forEach((AnchorElement) => {
-		const Href = AnchorElement.getAttribute('href') ?? '';
+		if (ElementValue.tagName.toLowerCase() === 'a') {
+			const Href = ElementValue.getAttribute('href') ?? '';
 
-		if (/^https?:\/\//i.test(Href)) {
-			AnchorElement.setAttribute('target', '_blank');
-			AnchorElement.setAttribute('rel', 'noopener noreferrer');
-			return;
+			if (/^https?:\/\//i.test(Href)) {
+				ElementValue.setAttribute('target', '_blank');
+				ElementValue.setAttribute('rel', 'noopener noreferrer');
+			} else if (!/^mailto:/i.test(Href) && !/^tel:/i.test(Href)) {
+					ElementValue.removeAttribute('href');
+				ElementValue.removeAttribute('target');
+				ElementValue.removeAttribute('rel');
+			}
 		}
 
-		if (/^mailto:/i.test(Href) || /^tel:/i.test(Href)) {
-			return;
+		if (ElementValue.tagName.toLowerCase() === 'video' || ElementValue.tagName.toLowerCase() === 'audio') {
+			ElementValue.removeAttribute('autoplay');
+			ElementValue.removeAttribute('loop');
+			ElementValue.setAttribute('preload', 'none');
 		}
 
-		AnchorElement.removeAttribute('href');
-		AnchorElement.removeAttribute('target');
-		AnchorElement.removeAttribute('rel');
-	});
-}
-
-function FreezeMediaElements(DocumentValue: Document): void {
-	DocumentValue.querySelectorAll('video, audio').forEach((MediaElement) => {
-		MediaElement.removeAttribute('autoplay');
-		MediaElement.removeAttribute('loop');
-		MediaElement.setAttribute('preload', 'none');
-	});
-}
-
-function FreezeAnimatedSvg(DocumentValue: Document): void {
-	// Stop SMIL animations from starting.
-	DocumentValue.querySelectorAll('animate, animateTransform, animateMotion, animateColor, set').forEach(
-		(AnimationElement) => {
-			AnimationElement.setAttribute('begin', 'indefinite');
-		},
-	);
+		if (
+			ElementValue.tagName.toLowerCase() === 'animate' ||
+			ElementValue.tagName.toLowerCase() === 'animatetransform' ||
+			ElementValue.tagName.toLowerCase() === 'animatemotion' ||
+			ElementValue.tagName.toLowerCase() === 'animatecolor' ||
+			ElementValue.tagName.toLowerCase() === 'set'
+		) {
+			// Stop SMIL animations from starting.
+			ElementValue.setAttribute('begin', 'indefinite');
+		}
+	}
 }
 
 async function FreezeGifImages(DocumentValue: Document): Promise<void> {
@@ -143,4 +146,71 @@ function InjectAnimationOverride(DocumentValue: Document): void {
 
 function IsJavascriptUrl(Url: string): boolean {
 	return Url.trim().toLowerCase().startsWith('javascript:');
+}
+
+function SanitiseLinkHint(ElementValue: Element): boolean {
+	if (ElementValue.tagName.toLowerCase() !== 'link') {
+		return false;
+	}
+
+	const RelValue = ElementValue.getAttribute('rel');
+	if (!RelValue) {
+		return false;
+	}
+
+	const RelTokens = ParseRelTokens(RelValue);
+	const NonHintTokens = RelTokens.filter((Token) => !LinkHintRels.has(Token));
+	if (NonHintTokens.length === RelTokens.length) {
+		return false;
+	}
+
+	if (NonHintTokens.length === 0) {
+		return true;
+	}
+
+	ElementValue.setAttribute('rel', NonHintTokens.join(' '));
+	return false;
+}
+
+export function StripResourceHintLinks(Html: string): string {
+	return Html.replace(LinkTagPattern, (LinkTag) => {
+		const RelMatch = LinkTag.match(LinkRelPattern);
+		if (!RelMatch) {
+			return LinkTag;
+		}
+
+		const RelValue = RelMatch[1] ?? RelMatch[2] ?? RelMatch[3] ?? '';
+		const RelTokens = ParseRelTokens(RelValue);
+		const NonHintTokens = RelTokens.filter((Token) => !LinkHintRels.has(Token));
+
+		if (NonHintTokens.length === RelTokens.length) {
+			return LinkTag;
+		}
+
+		if (NonHintTokens.length === 0) {
+			return '';
+		}
+
+		return LinkTag.replace(RelMatch[0], `rel="${NonHintTokens.join(' ')}"`);
+	});
+}
+
+export function StripStylesheetLinks(Html: string): string {
+	return Html.replace(LinkTagPattern, (LinkTag) => {
+		const RelMatch = LinkTag.match(LinkRelPattern);
+		if (!RelMatch) {
+			return LinkTag;
+		}
+
+		const RelValue = RelMatch[1] ?? RelMatch[2] ?? RelMatch[3] ?? '';
+		const RelTokens = ParseRelTokens(RelValue);
+		return RelTokens.includes('stylesheet') ? '' : LinkTag;
+	});
+}
+
+function ParseRelTokens(RelValue: string): string[] {
+	return RelValue
+		.toLowerCase()
+		.split(/\s+/)
+		.filter((Token) => Token.length > 0);
 }
