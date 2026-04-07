@@ -196,7 +196,7 @@ export default class HtmlViewerPlugin extends Plugin {
 		const LoadPromise = (async () => {
 			try {
 				const RawContent = await this.ReadHtmlFileContent(File);
-				const SanitisedContent = SanitiseHtml(RawContent);
+				const SanitisedContent = await SanitiseHtml(RawContent);
 				const PreviousHash = this.HtmlHashCache.get(File.path);
 				const NextHash = ContentHash(SanitisedContent);
 

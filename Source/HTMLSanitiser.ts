@@ -1,14 +1,20 @@
-const AnimationOverrideCss =
-	'*, *::before, *::after { animation: none !important; transition: none !important; }';
+const AnimationOverrideCss = [
+	'*, *::before, *::after { animation: none !important; transition: none !important; }',
+	'marquee { display: block !important; overflow: hidden !important; }',
+	'blink { text-decoration: none !important; }',
+].join(' ');
 
 const LinkAttributes = ['href', 'xlink:href'] as const;
 
-export function SanitiseHtml(Html: string): string {
+export async function SanitiseHtml(Html: string): Promise<string> {
 	const Parser = new DOMParser();
 	const DocumentValue = Parser.parseFromString(Html, 'text/html');
 
 	RemoveExecutableContent(DocumentValue);
 	SanitiseLinks(DocumentValue);
+	FreezeMediaElements(DocumentValue);
+	FreezeAnimatedSvg(DocumentValue);
+	await FreezeGifImages(DocumentValue);
 	InjectAnimationOverride(DocumentValue);
 
 	return DocumentValue.documentElement.outerHTML;
@@ -66,6 +72,56 @@ function SanitiseLinks(DocumentValue: Document): void {
 		AnchorElement.removeAttribute('target');
 		AnchorElement.removeAttribute('rel');
 	});
+}
+
+function FreezeMediaElements(DocumentValue: Document): void {
+	DocumentValue.querySelectorAll('video, audio').forEach((MediaElement) => {
+		MediaElement.removeAttribute('autoplay');
+		MediaElement.removeAttribute('loop');
+		MediaElement.setAttribute('preload', 'none');
+	});
+}
+
+function FreezeAnimatedSvg(DocumentValue: Document): void {
+	// Stop SMIL animations from starting.
+	DocumentValue.querySelectorAll('animate, animateTransform, animateMotion, animateColor, set').forEach(
+		(AnimationElement) => {
+			AnimationElement.setAttribute('begin', 'indefinite');
+		},
+	);
+}
+
+async function FreezeGifImages(DocumentValue: Document): Promise<void> {
+	const GifImages = Array.from(DocumentValue.querySelectorAll('img')).filter((Img) => {
+		const Src = Img.getAttribute('src') ?? '';
+		return /\.gif($|\?|#)/i.test(Src) || /^data:image\/gif/i.test(Src);
+	});
+
+	if (GifImages.length === 0) {
+		return;
+	}
+
+	await Promise.all(
+		GifImages.map((ImgElement) => {
+			const Src = ImgElement.getAttribute('src') ?? '';
+			return new Promise<void>((Resolve) => {
+				const Img = new Image();
+				Img.onload = () => {
+					const Canvas = document.createElement('canvas');
+					Canvas.width = Img.naturalWidth;
+					Canvas.height = Img.naturalHeight;
+					const Ctx = Canvas.getContext('2d');
+					if (Ctx && Canvas.width > 0 && Canvas.height > 0) {
+						Ctx.drawImage(Img, 0, 0);
+						ImgElement.setAttribute('src', Canvas.toDataURL('image/png'));
+					}
+					Resolve();
+				};
+				Img.onerror = () => Resolve();
+				Img.src = Src;
+			});
+		})
+	);
 }
 
 function InjectAnimationOverride(DocumentValue: Document): void {
