@@ -27,11 +27,26 @@ export function Uint8ArrayToBase64(Bytes: Uint8Array): string {
 }
 
 /**
- * Converts a Uint8Array to a UTF-8 string.
+ * Converts a Uint8Array to a string using the provided text encoding.
  */
-export function Uint8ArrayToString(Bytes: Uint8Array): string {
-	const Decoder = new TextDecoder('utf-8');
-	return Decoder.decode(Bytes);
+export function Uint8ArrayToString(Bytes: Uint8Array, EncodingName?: string): string {
+	const SafeEncodingName = NormaliseEncodingName(EncodingName);
+
+	try {
+		const Decoder = new TextDecoder(SafeEncodingName);
+		return Decoder.decode(Bytes);
+	} catch {
+		const Decoder = new TextDecoder('utf-8');
+		return Decoder.decode(Bytes);
+	}
+}
+
+function NormaliseEncodingName(EncodingName?: string): string {
+	if (!EncodingName) {
+		return 'utf-8';
+	}
+
+	return EncodingName.trim().toLowerCase() || 'utf-8';
 }
 
 /**
@@ -61,4 +76,3 @@ export function ScheduleNonBlockingRender(
 
 	requestAnimationFrame(Callback);
 }
-

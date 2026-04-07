@@ -1,44 +1,90 @@
+const AnimationOverrideCss =
+	'*, *::before, *::after { animation: none !important; transition: none !important; }';
+
+const LinkAttributes = ['href', 'xlink:href'] as const;
+
 export function SanitiseHtml(Html: string): string {
-	Html = Html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi, '');
-	Html = Html.replace(/<script\b[^>]*\/\s*>/gi, '');
+	const Parser = new DOMParser();
+	const DocumentValue = Parser.parseFromString(Html, 'text/html');
 
-	Html = Html.replace(/(<[^>]*?)\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '$1');
+	RemoveExecutableContent(DocumentValue);
+	SanitiseLinks(DocumentValue);
+	InjectAnimationOverride(DocumentValue);
 
-	Html = Html.replace(
-		/(<a\b[^>]*?\bhref\s*=\s*)(["'])javascript:[^"']*\2/gi,
-		'$1$2$2'
-	);
+	return DocumentValue.documentElement.outerHTML;
+}
 
-	// Keep external links working, but block links that would navigate inside the embed.
-	Html = Html.replace(/<a\b([^>]*)>/gi, (Match, Attrs: string) => {
-		const HrefMatch = Attrs.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
-		const Href = HrefMatch ? (HrefMatch[1] ?? HrefMatch[2] ?? '') : '';
+function RemoveExecutableContent(DocumentValue: Document): void {
+	DocumentValue.querySelectorAll('script, meta[http-equiv]').forEach((ElementValue) => {
+		if (
+			ElementValue.tagName.toLowerCase() === 'meta' &&
+			ElementValue.getAttribute('http-equiv')?.trim().toLowerCase() !== 'refresh'
+		) {
+			return;
+		}
+
+		ElementValue.remove();
+	});
+
+	DocumentValue.querySelectorAll('*').forEach((ElementValue) => {
+		for (const AttributeName of ElementValue.getAttributeNames()) {
+			if (AttributeName.toLowerCase().startsWith('on')) {
+				ElementValue.removeAttribute(AttributeName);
+			}
+		}
+	});
+}
+
+function SanitiseLinks(DocumentValue: Document): void {
+	DocumentValue.querySelectorAll('*').forEach((ElementValue) => {
+		for (const AttributeName of LinkAttributes) {
+			const AttributeValue = ElementValue.getAttribute(AttributeName);
+			if (!AttributeValue) {
+				continue;
+			}
+
+			if (IsJavascriptUrl(AttributeValue)) {
+				ElementValue.removeAttribute(AttributeName);
+			}
+		}
+	});
+
+	DocumentValue.querySelectorAll('a').forEach((AnchorElement) => {
+		const Href = AnchorElement.getAttribute('href') ?? '';
 
 		if (/^https?:\/\//i.test(Href)) {
-			const CleanAttrs = Attrs
-				.replace(/\btarget\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-				.replace(/\brel\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-			return `<a${CleanAttrs} target="_blank" rel="noopener noreferrer">`;
+			AnchorElement.setAttribute('target', '_blank');
+			AnchorElement.setAttribute('rel', 'noopener noreferrer');
+			return;
 		}
 
 		if (/^mailto:/i.test(Href) || /^tel:/i.test(Href)) {
-			return Match;
+			return;
 		}
 
-		const StrippedAttrs = Attrs.replace(/\bhref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-		return `<a${StrippedAttrs}>`;
+		AnchorElement.removeAttribute('href');
+		AnchorElement.removeAttribute('target');
+		AnchorElement.removeAttribute('rel');
 	});
+}
 
-	const AnimationOverride =
-		'<style>*, *::before, *::after { animation: none !important; transition: none !important; }</style>';
+function InjectAnimationOverride(DocumentValue: Document): void {
+	const StyleElement = DocumentValue.createElement('style');
+	StyleElement.textContent = AnimationOverrideCss;
 
-	if (/<\/head\s*>/i.test(Html)) {
-		Html = Html.replace(/<\/head\s*>/i, `${AnimationOverride}</head>`);
-	} else if (/<\/body\s*>/i.test(Html)) {
-		Html = Html.replace(/<\/body\s*>/i, `${AnimationOverride}</body>`);
-	} else {
-		Html += AnimationOverride;
+	if (DocumentValue.head) {
+		DocumentValue.head.appendChild(StyleElement);
+		return;
 	}
 
-	return Html;
+	if (DocumentValue.body) {
+		DocumentValue.body.appendChild(StyleElement);
+		return;
+	}
+
+	DocumentValue.documentElement.appendChild(StyleElement);
+}
+
+function IsJavascriptUrl(Url: string): boolean {
+	return Url.trim().toLowerCase().startsWith('javascript:');
 }

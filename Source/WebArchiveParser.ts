@@ -18,7 +18,10 @@ export function ParseWebArchive(BinaryData: ArrayBuffer): string {
 		}
 
 		const MainResourceData = EnsureUint8Array(MainResource.WebResourceData);
-		let HtmlContent = Uint8ArrayToString(MainResourceData);
+		let HtmlContent = Uint8ArrayToString(
+			MainResourceData,
+			ResolveTextEncoding(MainResource)
+		);
 
 		const AllResources = CollectAllResources(PlistData);
 
@@ -35,7 +38,7 @@ export function ParseWebArchive(BinaryData: ArrayBuffer): string {
 			const Data = EnsureUint8Array(Resource.WebResourceData);
 
 			if (MimeType === 'text/css') {
-				const CssContent = Uint8ArrayToString(Data);
+				const CssContent = Uint8ArrayToString(Data, ResolveTextEncoding(Resource));
 				CssResources.push({ Url, Content: CssContent });
 				continue;
 			}
@@ -53,6 +56,20 @@ export function ParseWebArchive(BinaryData: ArrayBuffer): string {
 	} catch (ErrorValue) {
 		return `<html><body><p>Error parsing WebArchive file: ${ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue)}</p></body></html>`;
 	}
+}
+
+function ResolveTextEncoding(Resource: WebResource): string | undefined {
+	if (Resource.WebResourceTextEncodingName) {
+		return Resource.WebResourceTextEncodingName;
+	}
+
+	const MimeType = Resource.WebResourceMIMEType;
+	if (!MimeType) {
+		return undefined;
+	}
+
+	const CharsetMatch = MimeType.match(/charset\s*=\s*([^;]+)/i);
+	return CharsetMatch?.[1]?.trim();
 }
 
 /**
