@@ -6,7 +6,7 @@ export const HTML_EMBED_IFRAME_SANDBOX =
 export const FILE_MODIFY_DEBOUNCE_MS = 300;
 export const NON_BLOCKING_RENDER_TIMEOUT_MS = 100;
 
-const HtmlEmbedExtensions = new Set(['html', 'mhtml', 'webarchive']);
+const HtmlEmbedExtensions = new Set(['html', 'mhtml', 'mht', 'webarchive']);
 const HtmlViewExtensions = new Set(['html', 'mhtml', 'mht', 'webarchive']);
 
 export function IsHtmlEmbedExtension(Extension: string): boolean {

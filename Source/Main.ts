@@ -23,6 +23,7 @@ import {
 } from './HTMLSanitiser';
 import { ContentHash } from './Utils';
 import { ParseWebArchive } from './WebArchiveParser';
+import { ParseMHTML } from './MHTMLParser';
 import {
 	StartStage,
 	EndStage,
@@ -66,7 +67,7 @@ export default class HtmlViewerPlugin extends Plugin {
 			VIEW_TYPE_HTML,
 			(Leaf: WorkspaceLeaf) => new HTMLFileView(Leaf, this)
 		);
-		this.registerExtensions(['html', 'mhtml', 'webarchive'], VIEW_TYPE_HTML);
+		this.registerExtensions(['html', 'mhtml', 'mht', 'webarchive'], VIEW_TYPE_HTML);
 
 		this.registerEditorExtension(CreateLivePreviewSuppressor(this));
 
@@ -305,25 +306,29 @@ export default class HtmlViewerPlugin extends Plugin {
 
 	private async ReadHtmlFileContent(File: TFile): Promise<string> {
 		StartStage(File.path, 'readSource');
+		const Ext = File.extension.toLowerCase();
 
-		if (File.extension.toLowerCase() !== 'webarchive') {
-			const Content = await this.app.vault.read(File);
+		if (Ext === 'webarchive') {
+			const BinaryContent = await this.app.vault.readBinary(File);
 			RecordStage(File.path, 'readSource', EndStage(File.path, 'readSource'));
-			return Content;
+
+			StartStage(File.path, 'parseWebArchive');
+			const ParsedHtml = ParseWebArchive(BinaryContent);
+			RecordStage(File.path, 'parseWebArchive', EndStage(File.path, 'parseWebArchive'));
+			return ParsedHtml;
 		}
 
-		const BinaryContent = await this.app.vault.readBinary(File);
+		const Content = await this.app.vault.read(File);
 		RecordStage(File.path, 'readSource', EndStage(File.path, 'readSource'));
 
-		StartStage(File.path, 'parseWebArchive');
-		const ParsedHtml = ParseWebArchive(BinaryContent);
-		RecordStage(
-			File.path,
-			'parseWebArchive',
-			EndStage(File.path, 'parseWebArchive')
-		);
+		if (Ext === 'mhtml' || Ext === 'mht') {
+			StartStage(File.path, 'parseMHTML');
+			const ParsedHtml = ParseMHTML(Content);
+			RecordStage(File.path, 'parseMHTML', EndStage(File.path, 'parseMHTML'));
+			return ParsedHtml;
+		}
 
-		return ParsedHtml;
+		return Content;
 	}
 
 	async LoadAndCacheHtml(File: TFile): Promise<void> {
