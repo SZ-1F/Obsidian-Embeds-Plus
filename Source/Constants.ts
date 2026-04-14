@@ -1,4 +1,4 @@
-export const VIEW_TYPE_HTML = 'html-view';
+export const VIEW_TYPE_HTML = 'obsidian-embeds-plus-html-view';
 
 export const HTML_EMBED_HEIGHT_PX = 842;
 export const HTML_EMBED_IFRAME_SANDBOX =
