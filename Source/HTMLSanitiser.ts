@@ -107,16 +107,24 @@ async function FreezeGifImages(DocumentValue: Document): Promise<void> {
 	await Promise.all(
 		GifImages.map((ImgElement) => {
 			const Src = ImgElement.getAttribute('src') ?? '';
+			if (!CanFreezeGifSource(Src)) {
+				return Promise.resolve();
+			}
+
 			return new Promise<void>((Resolve) => {
 				const Img = new Image();
 				Img.onload = () => {
-					const Canvas = document.createElement('canvas');
-					Canvas.width = Img.naturalWidth;
-					Canvas.height = Img.naturalHeight;
-					const Ctx = Canvas.getContext('2d');
-					if (Ctx && Canvas.width > 0 && Canvas.height > 0) {
-						Ctx.drawImage(Img, 0, 0);
-						ImgElement.setAttribute('src', Canvas.toDataURL('image/png'));
+					try {
+						const Canvas = document.createElement('canvas');
+						Canvas.width = Img.naturalWidth;
+						Canvas.height = Img.naturalHeight;
+						const Ctx = Canvas.getContext('2d');
+						if (Ctx && Canvas.width > 0 && Canvas.height > 0) {
+							Ctx.drawImage(Img, 0, 0);
+							ImgElement.setAttribute('src', Canvas.toDataURL('image/png'));
+						}
+					} catch {
+						// Keep the original GIF source when export is blocked.
 					}
 					Resolve();
 				};
@@ -125,6 +133,10 @@ async function FreezeGifImages(DocumentValue: Document): Promise<void> {
 			});
 		})
 	);
+}
+
+function CanFreezeGifSource(Src: string): boolean {
+	return /^data:image\/gif/i.test(Src);
 }
 
 function InjectAnimationOverride(DocumentValue: Document): void {
