@@ -76,3 +76,26 @@ export function ScheduleNonBlockingRender(
 
 	requestAnimationFrame(Callback);
 }
+
+export function WithTimeout<T>(
+	PromiseValue: Promise<T>,
+	TimeoutMs: number,
+	ErrorMessage: string
+): Promise<T> {
+	return new Promise<T>((Resolve, Reject) => {
+		const Timer = window.setTimeout(() => {
+			Reject(new Error(ErrorMessage));
+		}, TimeoutMs);
+
+		PromiseValue.then(
+			(Result) => {
+				window.clearTimeout(Timer);
+				Resolve(Result);
+			},
+			(ErrorValue) => {
+				window.clearTimeout(Timer);
+				Reject(ErrorValue);
+			}
+		);
+	});
+}

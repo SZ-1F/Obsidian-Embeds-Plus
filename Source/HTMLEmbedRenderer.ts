@@ -2,9 +2,10 @@ import { MarkdownRenderChild, TFile } from 'obsidian';
 import {
 	HTML_EMBED_HEIGHT_PX,
 	HTML_EMBED_IFRAME_SANDBOX,
+	HTML_LOAD_FAILURE_TIMEOUT_MS,
 } from './Constants';
 import type HtmlViewerPlugin from './Main';
-import { ScheduleNonBlockingRender } from './Utils';
+import { ScheduleNonBlockingRender, WithTimeout } from './Utils';
 import {
 	StartStage,
 	EndStage,
@@ -22,7 +23,9 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 	private IsDisposed = false;
 	private RenderStartMs = 0;
 	private UsedCachedBlob = false;
- 	private BlobUrlChecked = false;
+	private BlobUrlChecked = false;
+	private RenderToken = 0;
+	private IframeLoadTimeout: number | null = null;
 
 	constructor(
 		ContainerElement: HTMLElement,
@@ -35,6 +38,9 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 
 	async onload() {
 		this.IsDisposed = false;
+		this.RenderToken++;
+		const CurrentRenderToken = this.RenderToken;
+		this.ClearIframeLoadTimeout();
 		this.RenderStartMs = performance.now();
 		StartStage(this.File.path, 'totalRender');
 
@@ -44,8 +50,12 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 				this.RenderEmbed('', true);
 			}
 
-			const Entry = await this.Plugin.GetCachedContent(this.File);
-			if (this.IsDisposed || !this.containerEl.isConnected) {
+			const Entry = await WithTimeout(
+				this.Plugin.GetCachedContent(this.File),
+				HTML_LOAD_FAILURE_TIMEOUT_MS,
+				`Timed out loading archived content after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds`
+			);
+			if (!this.IsRenderTokenCurrent(CurrentRenderToken)) {
 				return;
 			}
 
@@ -55,7 +65,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 
 			this.RenderEmbed(Entry.Html);
 		} catch (ErrorValue) {
-			if (this.IsDisposed) {
+			if (!this.IsRenderTokenCurrent(CurrentRenderToken)) {
 				return;
 			}
 
@@ -153,7 +163,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 			return;
 		}
 
-		this.RenderIframeAsync(Iframe, HtmlContent);
+		this.RenderIframeAsync(Iframe, HtmlContent, this.RenderToken);
 	}
 
 	private CreateTextButton(
@@ -178,17 +188,21 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		});
 	}
 
-	private RenderIframeAsync(Iframe: HTMLIFrameElement, HtmlContent: string): void {
+	private RenderIframeAsync(
+		Iframe: HTMLIFrameElement,
+		HtmlContent: string,
+		RenderToken: number
+	): void {
 		const CachedBlobUrl = this.Plugin.GetOrCreateBlobUrl(this.File.path);
 		this.UsedCachedBlob = this.BlobUrlChecked || !!CachedBlobUrl;
 
 		if (CachedBlobUrl) {
-			this.RenderWithBlobUrl(Iframe, CachedBlobUrl);
+			this.RenderWithBlobUrl(Iframe, CachedBlobUrl, RenderToken);
 			return;
 		}
 
 		ScheduleNonBlockingRender(() => {
-			if (this.IsDisposed || !Iframe.isConnected) {
+			if (!this.IsRenderTokenCurrent(RenderToken) || !Iframe.isConnected) {
 				return;
 			}
 
@@ -201,23 +215,52 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 			);
 
 			if (NewBlobUrl) {
-				this.RenderWithBlobUrl(Iframe, NewBlobUrl);
+				this.RenderWithBlobUrl(Iframe, NewBlobUrl, RenderToken);
 			} else {
 				this.FallbackSyncRender(Iframe, HtmlContent);
 			}
 		});
 	}
 
-	private RenderWithBlobUrl(Iframe: HTMLIFrameElement, BlobUrl: string): void {
-		if (this.IsDisposed || !Iframe.isConnected) {
+	private RenderWithBlobUrl(
+		Iframe: HTMLIFrameElement,
+		BlobUrl: string,
+		RenderToken: number
+	): void {
+		if (!this.IsRenderTokenCurrent(RenderToken) || !Iframe.isConnected) {
 			return;
 		}
 
+		this.ClearIframeLoadTimeout();
 		StartStage(this.File.path, 'iframeLoad');
+
+		this.IframeLoadTimeout = window.setTimeout(() => {
+			this.IframeLoadTimeout = null;
+			if (!this.IsRenderTokenCurrent(RenderToken)) {
+				return;
+			}
+
+			this.RenderToken++;
+			this.Plugin.LogPluginError(
+				'load iframe',
+				new Error(
+					`Timed out loading preview iframe after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds`
+				),
+				this.File.path
+			);
+			this.RenderError(
+				`Error rendering HTML embed: Timed out loading preview iframe after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds.`
+			);
+		}, HTML_LOAD_FAILURE_TIMEOUT_MS);
 
 		Iframe.addEventListener(
 			'load',
 			() => {
+				this.ClearIframeLoadTimeout();
+				if (!this.IsRenderTokenCurrent(RenderToken)) {
+					return;
+				}
+
 				RecordStage(
 					this.File.path,
 					'iframeLoad',
@@ -232,11 +275,29 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 				const TotalMs = performance.now() - this.RenderStartMs;
 				this.Plugin.LogEmbedRendered(this.File.path, TotalMs);
 
-					const CacheType = this.UsedCachedBlob ? 'warm (blob cached)' : 'cold';
+				const CacheType = this.UsedCachedBlob ? 'warm (blob cached)' : 'cold';
 				LogPerformanceSummary(
 					this.File.path,
 					`render complete (${CacheType})`
 				);
+			},
+			{ once: true }
+		);
+
+		Iframe.addEventListener(
+			'error',
+			() => {
+				this.ClearIframeLoadTimeout();
+				if (!this.IsRenderTokenCurrent(RenderToken)) {
+					return;
+				}
+
+				this.Plugin.LogPluginError(
+					'load iframe',
+					new Error('Preview iframe failed to load'),
+					this.File.path
+				);
+				this.RenderError('Error rendering HTML embed: Preview iframe failed to load.');
 			},
 			{ once: true }
 		);
@@ -279,6 +340,23 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 
 	onunload() {
 		this.IsDisposed = true;
+		this.RenderToken++;
+		this.ClearIframeLoadTimeout();
 		// The plugin owns blob URL cleanup.
+	}
+
+	private ClearIframeLoadTimeout(): void {
+		if (this.IframeLoadTimeout !== null) {
+			window.clearTimeout(this.IframeLoadTimeout);
+			this.IframeLoadTimeout = null;
+		}
+	}
+
+	private IsRenderTokenCurrent(RenderToken: number): boolean {
+		return (
+			RenderToken === this.RenderToken &&
+			!this.IsDisposed &&
+			this.containerEl.isConnected
+		);
 	}
 }

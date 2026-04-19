@@ -9,6 +9,7 @@ import {
 } from 'obsidian';
 import {
 	FILE_MODIFY_DEBOUNCE_MS,
+	HTML_LOAD_FAILURE_TIMEOUT_MS,
 	VIEW_TYPE_HTML,
 	IsHtmlEmbedExtension,
 } from './Constants';
@@ -21,7 +22,7 @@ import {
 	StripResourceHintLinks,
 	StripStylesheetLinks,
 } from './HTMLSanitiser';
-import { ContentHash } from './Utils';
+import { ContentHash, WithTimeout } from './Utils';
 import { ParseWebArchive } from './WebArchiveParser';
 import { ParseMHTML } from './MHTMLParser';
 import {
@@ -340,16 +341,24 @@ export default class HtmlViewerPlugin extends Plugin {
 
 		const LoadPromise = (async () => {
 			try {
-				const RawContent = await this.ReadHtmlFileContent(File);
+				const RawContent = await WithTimeout(
+					this.ReadHtmlFileContent(File),
+					HTML_LOAD_FAILURE_TIMEOUT_MS,
+					`Timed out loading source content after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds`
+				);
 
 				StartStage(File.path, 'sanitise');
-				const SanitisedContent = await SanitiseHtml(RawContent);
+				const SanitisedContent = await WithTimeout(
+					SanitiseHtml(RawContent),
+					HTML_LOAD_FAILURE_TIMEOUT_MS,
+					`Timed out sanitising content after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds`
+				);
 				RecordStage(File.path, 'sanitise', EndStage(File.path, 'sanitise'));
 
 				const PreviousEntry = this.Cache.get(File.path);
 				const NextHash = ContentHash(SanitisedContent);
 
-					if (PreviousEntry?.BlobUrl && PreviousEntry.Hash !== NextHash) {
+				if (PreviousEntry?.BlobUrl && PreviousEntry.Hash !== NextHash) {
 					this.RevokeBlobUrl(File.path);
 				}
 
