@@ -1,7 +1,7 @@
 {
 	"name": "Embeds+",
 	"version": "1.1.0",
-	"description": "View and embed HTML, MHTML and Web Archive files natively in Obsidian with full styling and inline preview support.",
+	"description": "View and embed HTML, MHTML, and Web Archive files natively with full styling and inline preview support.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
