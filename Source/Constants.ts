@@ -6,6 +6,7 @@ export const HTML_EMBED_IFRAME_SANDBOX =
 export const FILE_MODIFY_DEBOUNCE_MS = 300;
 export const NON_BLOCKING_RENDER_TIMEOUT_MS = 100;
 export const HTML_LOAD_FAILURE_TIMEOUT_MS = 15000;
+export const RENDERED_HTML_CACHE_VERSION = 3;
 
 const HtmlEmbedExtensions = new Set(['html', 'mhtml', 'mht', 'webarchive']);
 const HtmlViewExtensions = new Set(['html', 'mhtml', 'mht', 'webarchive']);

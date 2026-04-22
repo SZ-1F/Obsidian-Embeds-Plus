@@ -8,6 +8,7 @@ const LinkAttributes = ['href', 'xlink:href'] as const;
 const LinkHintRels = new Set(['preload', 'modulepreload', 'prefetch', 'prerender', 'preconnect', 'dns-prefetch']);
 const LinkTagPattern = /<link\b[^\u003e]*>/gi;
 const LinkRelPattern = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s\u003e]+))/i;
+const SrcsetDataCommaPlaceholder = '__EMBEDS_PLUS_DATA_COMMA__';
 
 export async function SanitiseHtml(Html: string): Promise<string> {
 	const Parser = new DOMParser();
@@ -55,6 +56,8 @@ function SanitiseAllElements(DocumentValue: Document): void {
 			}
 		}
 
+		ElementValue.removeAttribute('autofocus');
+
 		for (const AttributeName of LinkAttributes) {
 			const AttributeValue = ElementValue.getAttribute(AttributeName);
 			if (AttributeValue && IsJavascriptUrl(AttributeValue)) {
@@ -69,7 +72,7 @@ function SanitiseAllElements(DocumentValue: Document): void {
 				ElementValue.setAttribute('target', '_blank');
 				ElementValue.setAttribute('rel', 'noopener noreferrer');
 			} else if (!/^mailto:/i.test(Href) && !/^tel:/i.test(Href)) {
-					ElementValue.removeAttribute('href');
+				ElementValue.removeAttribute('href');
 				ElementValue.removeAttribute('target');
 				ElementValue.removeAttribute('rel');
 			}
@@ -218,6 +221,159 @@ export function StripStylesheetLinks(Html: string): string {
 		const RelTokens = ParseRelTokens(RelValue);
 		return RelTokens.includes('stylesheet') ? '' : LinkTag;
 	});
+}
+
+export function StripArchiveResidualResources(Html: string): string {
+	const Parser = new DOMParser();
+	const DocumentValue = Parser.parseFromString(Html, 'text/html');
+
+	DocumentValue.querySelectorAll('link').forEach((LinkElement) => {
+		LinkElement.remove();
+	});
+
+	for (const ElementValue of Array.from(DocumentValue.querySelectorAll('*'))) {
+		SanitiseUrlAttribute(ElementValue, 'src');
+		SanitiseUrlAttribute(ElementValue, 'poster');
+		SanitiseUrlAttribute(ElementValue, 'data');
+		SanitiseUrlAttribute(ElementValue, 'xlink:href');
+		SanitiseHrefAttribute(ElementValue);
+		SanitiseSrcsetAttribute(ElementValue, 'srcset');
+		SanitiseSrcsetAttribute(ElementValue, 'data-srcset');
+		SanitiseSrcsetAttribute(ElementValue, 'imagesrcset');
+		SanitiseCssDeclarationAttribute(ElementValue, 'style');
+	}
+
+	DocumentValue.querySelectorAll('style').forEach((StyleElement) => {
+		const CssContent = StyleElement.textContent;
+		if (!CssContent) {
+			return;
+		}
+
+		StyleElement.textContent = SanitiseCssUrlDeclarations(CssContent);
+	});
+
+	return DocumentValue.documentElement.outerHTML;
+}
+
+function SanitiseHrefAttribute(ElementValue: Element): void {
+	const Href = ElementValue.getAttribute('href');
+	if (!Href) {
+		return;
+	}
+
+	const LowerTagName = ElementValue.tagName.toLowerCase();
+	if (LowerTagName === 'a') {
+		return;
+	}
+
+	if (IsUnsafeArchiveResourceUrl(Href)) {
+		ElementValue.removeAttribute('href');
+	}
+}
+
+function SanitiseUrlAttribute(ElementValue: Element, AttributeName: string): void {
+	const AttributeValue = ElementValue.getAttribute(AttributeName);
+	if (!AttributeValue) {
+		return;
+	}
+
+	if (IsUnsafeArchiveResourceUrl(AttributeValue)) {
+		ElementValue.removeAttribute(AttributeName);
+	}
+}
+
+function SanitiseSrcsetAttribute(ElementValue: Element, AttributeName: string): void {
+	const SrcsetValue = ElementValue.getAttribute(AttributeName);
+	if (!SrcsetValue) {
+		return;
+	}
+
+	const SanitisedCandidates = SplitSrcsetCandidates(SrcsetValue)
+		.map((EntryValue) => EntryValue.trim())
+		.filter((EntryValue) => {
+			if (!EntryValue) {
+				return false;
+			}
+
+			const CandidateUrl = EntryValue.split(/\s+/)[0];
+			return !IsUnsafeArchiveResourceUrl(CandidateUrl);
+		});
+
+	if (SanitisedCandidates.length === 0) {
+		ElementValue.removeAttribute(AttributeName);
+		return;
+	}
+
+	ElementValue.setAttribute(AttributeName, SanitisedCandidates.join(', '));
+}
+
+function SplitSrcsetCandidates(SrcsetValue: string): string[] {
+	const ProtectedSrcsetValue = SrcsetValue.replace(
+		/(data:[^,\s]+;base64),/gi,
+		`$1${SrcsetDataCommaPlaceholder}`
+	);
+
+	return ProtectedSrcsetValue
+		.split(',')
+		.map((Part) => Part.split(SrcsetDataCommaPlaceholder).join(','));
+}
+
+function SanitiseCssDeclarationAttribute(ElementValue: Element, AttributeName: string): void {
+	const CssValue = ElementValue.getAttribute(AttributeName);
+	if (!CssValue) {
+		return;
+	}
+
+	const SanitisedCssValue = SanitiseCssUrlDeclarations(CssValue);
+	if (SanitisedCssValue !== CssValue) {
+		ElementValue.setAttribute(AttributeName, SanitisedCssValue);
+	}
+}
+
+function SanitiseCssUrlDeclarations(CssText: string): string {
+	return CssText.replace(/url\(\s*(["']?)([^)"']*)\1\s*\)/gi, (Match, _Quote: string, Url: string) => {
+		if (!IsUnsafeArchiveResourceUrl(Url)) {
+			return Match;
+		}
+
+		return 'url("data:,")';
+	});
+}
+
+function IsUnsafeArchiveResourceUrl(Url: string): boolean {
+	const TrimmedUrl = Url.trim();
+	if (TrimmedUrl.length === 0) {
+		return false;
+	}
+
+	const LowerUrl = TrimmedUrl.toLowerCase();
+	if (
+		LowerUrl.startsWith('data:') ||
+		LowerUrl.startsWith('http://') ||
+		LowerUrl.startsWith('https://') ||
+		LowerUrl.startsWith('mailto:') ||
+		LowerUrl.startsWith('tel:') ||
+		LowerUrl.startsWith('#')
+	) {
+		return false;
+	}
+
+	if (
+		LowerUrl.startsWith('blob:') ||
+		LowerUrl.startsWith('file:') ||
+		LowerUrl.startsWith('app:') ||
+		LowerUrl.startsWith('cid:') ||
+		LowerUrl.startsWith('mw-data:') ||
+		LowerUrl.startsWith('//')
+	) {
+		return true;
+	}
+
+	if (/^[a-z][a-z0-9+.-]*:/i.test(LowerUrl)) {
+		return true;
+	}
+
+	return true;
 }
 
 function ParseRelTokens(RelValue: string): string[] {

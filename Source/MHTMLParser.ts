@@ -3,6 +3,7 @@ import {
 	ResourceIndex,
 	ReplaceResourceUrls,
 	InjectCssResources,
+	RemoveUnresolvedLocalResourceUrls,
 	RemoveResidualLinkTags,
 } from './ResourceUtils';
 
@@ -50,6 +51,7 @@ export function ParseMHTML(Content: string): string {
 		const MainBytes = DecodeMimeBody(MainPart.RawBody, MainTransferEncoding);
 		const MainCharset = ExtractCharsetFromContentType(MainPart.Headers.get('content-type') ?? '') ?? 'utf-8';
 		let HtmlContent = Uint8ArrayToString(MainBytes, MainCharset);
+		const MainPartBaseUrl = ResolveMainPartBaseUrl(MainPart, OuterHeaders);
 
 		const Index = new ResourceIndex();
 		for (let I = 0; I < Parts.length; I++) {
@@ -60,8 +62,9 @@ export function ParseMHTML(Content: string): string {
 		}
 
 		// Reuse the WebArchive resource inlining steps.
-		HtmlContent = ReplaceResourceUrls(HtmlContent, Index);
-		HtmlContent = InjectCssResources(HtmlContent, Index);
+		HtmlContent = ReplaceResourceUrls(HtmlContent, Index, MainPartBaseUrl);
+		HtmlContent = InjectCssResources(HtmlContent, Index, MainPartBaseUrl);
+		HtmlContent = RemoveUnresolvedLocalResourceUrls(HtmlContent);
 		HtmlContent = RemoveResidualLinkTags(HtmlContent);
 		HtmlContent = HtmlContent.replace(/<base[^\u003e]*>/gi, '');
 
@@ -301,6 +304,18 @@ function AddPartToIndex(Part: MimePart, Index: ResourceIndex): void {
 	if (!ContentLocation && ContentId) {
 		Index.addResource({ Url: ContentId, MimeType, Data, Encoding });
 	}
+}
+
+function ResolveMainPartBaseUrl(
+	MainPart: MimePart,
+	OuterHeaders: Map<string, string>
+): string | undefined {
+	const MainLocation = MainPart.Headers.get('content-location');
+	if (MainLocation) {
+		return MainLocation;
+	}
+
+	return OuterHeaders.get('content-location');
 }
 
 function ErrorHtml(Message: string): string {

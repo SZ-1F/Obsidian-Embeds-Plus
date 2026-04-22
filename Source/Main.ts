@@ -10,6 +10,7 @@ import {
 import {
 	FILE_MODIFY_DEBOUNCE_MS,
 	HTML_LOAD_FAILURE_TIMEOUT_MS,
+	RENDERED_HTML_CACHE_VERSION,
 	VIEW_TYPE_HTML,
 	IsHtmlEmbedExtension,
 } from './Constants';
@@ -19,6 +20,7 @@ import { HtmlCacheUpdateEffect } from './CodeMirrorExtensions';
 import { CreateLivePreviewSuppressor } from './LivePreviewSuppressor';
 import {
 	SanitiseHtml,
+	StripArchiveResidualResources,
 	StripResourceHintLinks,
 	StripStylesheetLinks,
 } from './HTMLSanitiser';
@@ -235,7 +237,9 @@ export default class HtmlViewerPlugin extends Plugin {
 	private RefreshCachedResourceHints(FilePath: string, Entry: CacheEntry): CacheEntry {
 		const IsArchiveLikePath = /\.(webarchive|mhtml|mht)$/i.test(FilePath);
 		const UpdatedHtml = IsArchiveLikePath
-			? StripStylesheetLinks(StripResourceHintLinks(Entry.Html))
+			? StripArchiveResidualResources(
+					StripStylesheetLinks(StripResourceHintLinks(Entry.Html))
+				)
 			: StripResourceHintLinks(Entry.Html);
 		if (UpdatedHtml === Entry.Html) {
 			return Entry;
@@ -355,19 +359,24 @@ export default class HtmlViewerPlugin extends Plugin {
 				);
 				RecordStage(File.path, 'sanitise', EndStage(File.path, 'sanitise'));
 
+				const IsArchiveLikeFile = /\.(webarchive|mhtml|mht)$/i.test(File.path);
+				const FinalContent = IsArchiveLikeFile
+					? StripArchiveResidualResources(SanitisedContent)
+					: SanitisedContent;
+
 				const PreviousEntry = this.Cache.get(File.path);
-				const NextHash = ContentHash(SanitisedContent);
+				const NextHash = ContentHash(FinalContent);
 
 				if (PreviousEntry?.BlobUrl && PreviousEntry.Hash !== NextHash) {
 					this.RevokeBlobUrl(File.path);
 				}
 
 				const CacheEntryValue: CacheEntry = {
-					Html: SanitisedContent,
+					Html: FinalContent,
 					Hash: NextHash,
 					Mtime: File.stat.mtime,
 					LastAccessed: Date.now(),
-					ByteSize: new Blob([SanitisedContent]).size,
+					ByteSize: new Blob([FinalContent]).size,
 				};
 
 				this.Cache.set(File.path, CacheEntryValue);
@@ -434,7 +443,7 @@ export default class HtmlViewerPlugin extends Plugin {
 	}
 
 	private async LoadPersistentCacheEntry(File: TFile): Promise<CacheEntry | null> {
-		const CacheKey = `${File.path}:${File.stat.mtime}`;
+		const CacheKey = `${File.path}:${File.stat.mtime}:v${RENDERED_HTML_CACHE_VERSION}`;
 		const ExistingLoad = this.PendingPersistentLoads.get(CacheKey);
 		if (ExistingLoad) {
 			return ExistingLoad;
@@ -452,7 +461,11 @@ export default class HtmlViewerPlugin extends Plugin {
 
 	private async LoadPersistentCacheEntryInternal(File: TFile): Promise<CacheEntry | null> {
 		StartStage(File.path, 'persistentCacheRead');
-		const PersistentEntry = await this.PersistentCache.Get(File.path, File.stat.mtime);
+		const PersistentEntry = await this.PersistentCache.Get(
+			File.path,
+			File.stat.mtime,
+			RENDERED_HTML_CACHE_VERSION
+		);
 		RecordStage(
 			File.path,
 			'persistentCacheRead',
@@ -480,6 +493,7 @@ export default class HtmlViewerPlugin extends Plugin {
 		const Record: PersistentCacheRecord = {
 			Path: FilePath,
 			Mtime: Entry.Mtime,
+			Version: RENDERED_HTML_CACHE_VERSION,
 			Html: Entry.Html,
 			Hash: Entry.Hash,
 			LastAccessed: Entry.LastAccessed,

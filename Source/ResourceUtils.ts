@@ -7,16 +7,17 @@ export interface ResourceEntry {
 	Encoding?: string;
 	IsCss: boolean;
 	CssContent?: string;
-	DataUri?: string; 
+	DataUri?: string;
 }
 
 const LinkTagPattern = /<link\b[^\u003e]*>/gi;
 const LinkRelPattern = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s\u003e]+))/i;
 const StylesheetRel = 'stylesheet';
+const SrcsetDataCommaPlaceholder = '__EMBEDS_PLUS_DATA_COMMA__';
 
 /**
- * Stores archive resources in the forms needed for later lookup.
- */
+* Stores archive resources in the forms needed for later lookup.
+*/
 export class ResourceIndex {
 	private readonly ResourcesByUrl = new Map<string, ResourceEntry>();
 	private readonly CssResources: Array<{ Url: string; Content: string }> = [];
@@ -66,10 +67,26 @@ export class ResourceIndex {
 		}
 	}
 
-	findResource(HtmlUrl: string): ResourceEntry | null {
-		if (HtmlUrl.startsWith('data:')) {
+	findResource(HtmlUrl: string, BaseUrl?: string): ResourceEntry | null {
+		const TrimmedHtmlUrl = HtmlUrl.trim();
+		if (TrimmedHtmlUrl.startsWith('data:')) {
 			return null;
 		}
+
+		const DirectEntry = this.FindResourceByUrl(TrimmedHtmlUrl);
+		if (DirectEntry) {
+			return DirectEntry;
+		}
+
+		const ResolvedUrl = ResolveUrlAgainstBase(TrimmedHtmlUrl, BaseUrl);
+		if (!ResolvedUrl || ResolvedUrl === TrimmedHtmlUrl) {
+			return null;
+		}
+
+		return this.FindResourceByUrl(ResolvedUrl);
+	}
+
+	private FindResourceByUrl(HtmlUrl: string): ResourceEntry | null {
 
 		const NormalisedHtmlUrl = NormaliseUrl(HtmlUrl);
 		let Entry = this.ResourcesByUrl.get(NormalisedHtmlUrl);
@@ -135,9 +152,9 @@ export class ResourceIndex {
 }
 
 /**
- * Normalises a URL for consistent matching.
- * Strips query parameters, fragments, and size prefixes/suffixes.
- */
+* Normalises a URL for consistent matching.
+* Strips query parameters, fragments, and size prefixes/suffixes.
+*/
 export function NormaliseUrl(Url: string): string {
 	let NormalisedUrl = Url.split('?')[0].split('#')[0];
 
@@ -149,14 +166,16 @@ export function NormaliseUrl(Url: string): string {
 	return NormalisedUrl.toLowerCase();
 }
 
-/**
- * Rewrites archived resource references so the HTML can stand on its own.
- */
-export function ReplaceResourceUrls(Html: string, Index: ResourceIndex): string {
+// Rewrites archived resource references so the HTML can stand on its own.
+export function ReplaceResourceUrls(
+	Html: string,
+	Index: ResourceIndex,
+	BaseUrl?: string
+): string {
 	Html = Html.replace(
-		/(src|href|data-src|data-href|poster|xlink:href)\s*=\s*(["'])([^"']*)\2/gi,
+		/(src|href|data|data-src|data-href|poster|xlink:href)\s*=\s*(["'])([^"']*)\2/gi,
 		(Match, AttributeName: string, Quote: string, Url: string) => {
-			const Entry = Index.findResource(Url);
+			const Entry = Index.findResource(Url, BaseUrl);
 			if (!Entry) {
 				return Match;
 			}
@@ -170,7 +189,7 @@ export function ReplaceResourceUrls(Html: string, Index: ResourceIndex): string 
 		/(srcset|data-srcset)\s*=\s*(["'])([^"']*)\2/gi,
 		(Match, AttributeName: string, Quote: string, SrcsetValue: string) => {
 			let HadReplacement = false;
-			const SrcsetParts = SrcsetValue.split(',').map((Part: string) => {
+			const SrcsetParts = SplitSrcsetCandidates(SrcsetValue).map((Part: string) => {
 				const TrimmedPart = Part.trim();
 				if (!TrimmedPart) {
 					return TrimmedPart;
@@ -179,7 +198,7 @@ export function ReplaceResourceUrls(Html: string, Index: ResourceIndex): string 
 				const Pieces = TrimmedPart.split(/\s+/);
 				const Url = Pieces[0];
 				const Descriptor = Pieces.slice(1).join(' ');
-				const Entry = Index.findResource(Url);
+				const Entry = Index.findResource(Url, BaseUrl);
 				if (!Entry) {
 					return TrimmedPart;
 				}
@@ -200,7 +219,7 @@ export function ReplaceResourceUrls(Html: string, Index: ResourceIndex): string 
 	Html = Html.replace(
 		/url\(\s*(["']?)([^)"']*)\1\s*\)/gi,
 		(Match, _Quote: string, Url: string) => {
-			const Entry = Index.findResource(Url);
+			const Entry = Index.findResource(Url, BaseUrl);
 			if (!Entry) {
 				return Match;
 			}
@@ -213,26 +232,28 @@ export function ReplaceResourceUrls(Html: string, Index: ResourceIndex): string 
 	return Html;
 }
 
-/**
- * Inlines archived stylesheets so linked CSS is still available offline.
- */
-export function InjectCssResources(Html: string, Index: ResourceIndex): string {
+// Inlines archived stylesheets so linked CSS is still available offline.
+export function InjectCssResources(
+	Html: string,
+	Index: ResourceIndex,
+	BaseUrl?: string
+): string {
 	const CssResources = Index.getCssResources();
 	if (CssResources.length === 0) {
 		return Html;
 	}
 
-	// Normalise CSS URLs up front before scanning link tags.
-	const CssUrlSet = new Set(CssResources.map((r) => NormaliseUrl(r.Url)));
-
 	const LinkTagPattern = /<link[^\u003e]*?\s+href=["']([^"']*)["'][^\u003e]*?>/gi;
-	const Matches: Array<{ FullMatch: string; Url: string }> = [];
+	const Matches: Array<{ FullMatch: string; Url: string; Entry: ResourceEntry }> = [];
+	const MatchedCssUrls = new Set<string>();
 
 	let Match;
 	while ((Match = LinkTagPattern.exec(Html)) !== null) {
 		const Url = Match[1];
-		if (CssUrlSet.has(NormaliseUrl(Url))) {
-			Matches.push({ FullMatch: Match[0], Url });
+		const Entry = Index.findResource(Url, BaseUrl);
+		if (Entry?.CssContent) {
+			Matches.push({ FullMatch: Match[0], Url, Entry });
+			MatchedCssUrls.add(NormaliseUrl(Entry.Url));
 		}
 	}
 
@@ -243,13 +264,8 @@ export function InjectCssResources(Html: string, Index: ResourceIndex): string {
 	let Result = Html;
 	const UnmatchedCss: Array<{ Url: string; Content: string }> = [];
 
-	for (const { Url } of Matches) {
-		const Entry = Index.findResource(Url);
-		if (!Entry?.CssContent) {
-			continue;
-		}
-
-		const ProcessedCss = ProcessCssContent(Entry.CssContent, Index);
+	for (const { Url, Entry } of Matches) {
+		const ProcessedCss = ProcessCssContent(Entry.CssContent ?? '', Index, Entry.Url);
 
 		const EscapedUrl = Url.replace(/[.*+?^${}()|[\\\]]/g, '\\$&');
 		const SpecificPattern = new RegExp(
@@ -263,7 +279,7 @@ export function InjectCssResources(Html: string, Index: ResourceIndex): string {
 	}
 
 	for (const { Url, Content } of CssResources) {
-		const WasMatched = Matches.some((m) => NormaliseUrl(m.Url) === NormaliseUrl(Url));
+		const WasMatched = MatchedCssUrls.has(NormaliseUrl(Url));
 		if (!WasMatched) {
 			UnmatchedCss.push({ Url, Content });
 		}
@@ -282,7 +298,10 @@ function InjectUnmatchedCss(
 	Index: ResourceIndex
 ): string {
 	const CombinedCssBlocks = CssResources
-		.map(({ Content }) => `<style type="text/css"\u003e\n${ProcessCssContent(Content, Index)}\n</style>`)
+		.map(
+			({ Url, Content }) =>
+				`<style type="text/css"\u003e\n${ProcessCssContent(Content, Index, Url)}\n</style>`
+		)
 		.join('\n');
 
 	const HeadMatch = Html.match(/<head[^\u003e]*>/i);
@@ -326,12 +345,13 @@ function InjectUnmatchedCss(
 function ProcessCssContent(
 	CssContent: string,
 	Index: ResourceIndex,
+	BaseUrl?: string,
 	VisitedCssUrls: Set<string> = new Set()
 ): string {
 	const ProcessedImports = CssContent.replace(
 		/@import\s+(?:url\(\s*)?(["']?)([^"')\s;]+)\1\s*\)?[^;]*;/gi,
 		(_ImportStatement, _Quote: string, ImportUrl: string) => {
-			const ImportEntry = Index.findResource(ImportUrl);
+			const ImportEntry = Index.findResource(ImportUrl, BaseUrl);
 			if (!ImportEntry?.CssContent) {
 				return '';
 			}
@@ -346,6 +366,7 @@ function ProcessCssContent(
 			const ImportedCss = ProcessCssContent(
 				ImportEntry.CssContent,
 				Index,
+				ImportEntry.Url,
 				VisitedCssUrls
 			);
 			return ImportedCss.length > 0 ? `${ImportedCss}\n` : '';
@@ -355,7 +376,7 @@ function ProcessCssContent(
 	return ProcessedImports.replace(
 		/url\(\s*(["']?)([^)"']*)\1\s*\)/gi,
 		(Match, _Quote: string, CssUrl: string) => {
-			const RefEntry = Index.findResource(CssUrl);
+			const RefEntry = Index.findResource(CssUrl, BaseUrl);
 			if (!RefEntry) {
 				return Match;
 			}
@@ -364,6 +385,122 @@ function ProcessCssContent(
 			return `url("${DataUri}")`;
 		}
 	);
+}
+
+function ResolveUrlAgainstBase(HtmlUrl: string, BaseUrl?: string): string | null {
+	if (!BaseUrl || BaseUrl.length === 0) {
+		return null;
+	}
+
+	const TrimmedUrl = HtmlUrl.trim();
+	if (TrimmedUrl.length === 0) {
+		return null;
+	}
+
+	if (TrimmedUrl.startsWith('data:') || TrimmedUrl.startsWith('cid:') || TrimmedUrl.startsWith('#')) {
+		return null;
+	}
+
+	try {
+		return new URL(TrimmedUrl, BaseUrl).href;
+	} catch {
+		return null;
+	}
+}
+
+export function RemoveUnresolvedLocalResourceUrls(Html: string): string {
+	Html = Html.replace(
+		/(src|data|data-src|data-href|poster|xlink:href)\s*=\s*(["'])([^"']*)\2/gi,
+		(Match, _AttributeName: string, _Quote: string, Url: string) => {
+			if (!IsUnsafeUnresolvedResourceUrl(Url)) {
+				return Match;
+			}
+
+			return '';
+		}
+	);
+
+	Html = Html.replace(
+		/(srcset|data-srcset)\s*=\s*(["'])([^"']*)\2/gi,
+		(Match, AttributeName: string, Quote: string, SrcsetValue: string) => {
+			const OriginalParts = SplitSrcsetCandidates(SrcsetValue);
+			const FilteredParts = OriginalParts
+				.map((Part: string) => Part.trim())
+				.filter((Part: string) => {
+					if (!Part) {
+						return false;
+					}
+
+					const CandidateUrl = Part.split(/\s+/)[0];
+					return !IsUnsafeUnresolvedResourceUrl(CandidateUrl);
+				});
+
+			if (FilteredParts.length === 0) {
+				return '';
+			}
+
+			if (FilteredParts.length === OriginalParts.length) {
+				return Match;
+			}
+
+			return `${AttributeName}=${Quote}${FilteredParts.join(', ')}${Quote}`;
+		}
+	);
+
+	return Html.replace(
+		/url\(\s*(["']?)([^)"']*)\1\s*\)/gi,
+		(Match, _Quote: string, Url: string) => {
+			if (!IsUnsafeUnresolvedResourceUrl(Url)) {
+				return Match;
+			}
+
+			return 'url("data:,")';
+		}
+	);
+}
+
+function SplitSrcsetCandidates(SrcsetValue: string): string[] {
+	const ProtectedSrcsetValue = SrcsetValue.replace(
+		/(data:[^,\s]+;base64),/gi,
+		`$1${SrcsetDataCommaPlaceholder}`
+	);
+
+	return ProtectedSrcsetValue
+		.split(',')
+		.map((Part) => Part.split(SrcsetDataCommaPlaceholder).join(','));
+}
+
+function IsUnsafeUnresolvedResourceUrl(Url: string): boolean {
+	const TrimmedUrl = Url.trim();
+	if (TrimmedUrl.length === 0) {
+		return false;
+	}
+
+	const LowerUrl = TrimmedUrl.toLowerCase();
+	if (
+		LowerUrl.startsWith('data:') ||
+		LowerUrl.startsWith('http://') ||
+		LowerUrl.startsWith('https://') ||
+		LowerUrl.startsWith('//') ||
+		LowerUrl.startsWith('#')
+	) {
+		return false;
+	}
+
+	if (
+		LowerUrl.startsWith('blob:') ||
+		LowerUrl.startsWith('file:') ||
+		LowerUrl.startsWith('app:') ||
+		LowerUrl.startsWith('cid:')
+	) {
+		return true;
+	}
+
+	if (/^[a-z][a-z0-9+.-]*:/i.test(LowerUrl)) {
+		return false;
+	}
+
+	return true;
 }
 
 export function RemoveResidualLinkTags(Html: string): string {
