@@ -174,13 +174,7 @@ export default class HtmlViewerPlugin extends Plugin {
 		await this.LoadAndCacheHtml(File);
 		const Entry = this.Cache.get(File.path);
 		if (!Entry) {
-			return {
-				Html: '',
-				Hash: ContentHash(''),
-				Mtime: File.stat.mtime,
-				LastAccessed: Date.now(),
-				ByteSize: 0,
-			};
+			throw new Error(`Failed to cache HTML content for ${File.path}`);
 		}
 
 		return Entry;
@@ -302,7 +296,9 @@ export default class HtmlViewerPlugin extends Plugin {
 		}
 
 		const Timer = window.setTimeout(() => {
-			void this.LoadAndCacheHtml(File);
+			void this.LoadAndCacheHtml(File).catch((ErrorValue) => {
+				this.LogPluginError('refresh cache', ErrorValue, File.path);
+			});
 			this.DebounceTimers.delete(File.path);
 		}, FILE_MODIFY_DEBOUNCE_MS);
 
@@ -344,60 +340,49 @@ export default class HtmlViewerPlugin extends Plugin {
 		}
 
 		const LoadPromise = (async () => {
-			try {
-				const RawContent = await WithTimeout(
-					this.ReadHtmlFileContent(File),
-					HTML_LOAD_FAILURE_TIMEOUT_MS,
-					`Timed out loading source content after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds`
-				);
+			const RawContent = await WithTimeout(
+				this.ReadHtmlFileContent(File),
+				HTML_LOAD_FAILURE_TIMEOUT_MS,
+				`Timed out loading source content after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds`
+			);
 
-				StartStage(File.path, 'sanitise');
-				const SanitisedContent = await WithTimeout(
-					SanitiseHtml(RawContent),
-					HTML_LOAD_FAILURE_TIMEOUT_MS,
-					`Timed out sanitising content after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds`
-				);
-				RecordStage(File.path, 'sanitise', EndStage(File.path, 'sanitise'));
+			StartStage(File.path, 'sanitise');
+			const SanitisedContent = await WithTimeout(
+				SanitiseHtml(RawContent),
+				HTML_LOAD_FAILURE_TIMEOUT_MS,
+				`Timed out sanitising content after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds`
+			);
+			RecordStage(File.path, 'sanitise', EndStage(File.path, 'sanitise'));
 
-				const IsArchiveLikeFile = /\.(webarchive|mhtml|mht)$/i.test(File.path);
-				const FinalContent = IsArchiveLikeFile
-					? StripArchiveResidualResources(SanitisedContent)
-					: SanitisedContent;
+			const IsArchiveLikeFile = /\.(webarchive|mhtml|mht)$/i.test(File.path);
+			const FinalContent = IsArchiveLikeFile
+				? StripArchiveResidualResources(SanitisedContent)
+				: SanitisedContent;
 
-				const PreviousEntry = this.Cache.get(File.path);
-				const NextHash = ContentHash(FinalContent);
+			const PreviousEntry = this.Cache.get(File.path);
+			const NextHash = ContentHash(FinalContent);
 
-				if (PreviousEntry?.BlobUrl && PreviousEntry.Hash !== NextHash) {
-					this.RevokeBlobUrl(File.path);
-				}
-
-				const CacheEntryValue: CacheEntry = {
-					Html: FinalContent,
-					Hash: NextHash,
-					Mtime: File.stat.mtime,
-					LastAccessed: Date.now(),
-					ByteSize: new Blob([FinalContent]).size,
-				};
-
-				this.Cache.set(File.path, CacheEntryValue);
-				void this.PersistCacheEntry(File.path, CacheEntryValue);
-
-				if (PreviousEntry === undefined || PreviousEntry.Hash !== NextHash) {
-					this.ResetEmbedRenderedLogged(File.path);
-				}
-
-				LogPerformanceSummary(File.path, 'cold load complete');
-				this.DispatchTargetedCacheUpdate(File.path);
-			} catch (ErrorValue) {
-				this.LogPluginError('load', ErrorValue, File.path);
-				this.Cache.set(File.path, {
-					Html: '',
-					Hash: ContentHash(''),
-					Mtime: File.stat.mtime,
-					LastAccessed: Date.now(),
-					ByteSize: 0,
-				});
+			if (PreviousEntry?.BlobUrl && PreviousEntry.Hash !== NextHash) {
+				this.RevokeBlobUrl(File.path);
 			}
+
+			const CacheEntryValue: CacheEntry = {
+				Html: FinalContent,
+				Hash: NextHash,
+				Mtime: File.stat.mtime,
+				LastAccessed: Date.now(),
+				ByteSize: new Blob([FinalContent]).size,
+			};
+
+			this.Cache.set(File.path, CacheEntryValue);
+			void this.PersistCacheEntry(File.path, CacheEntryValue);
+
+			if (PreviousEntry === undefined || PreviousEntry.Hash !== NextHash) {
+				this.ResetEmbedRenderedLogged(File.path);
+			}
+
+			LogPerformanceSummary(File.path, 'cold load complete');
+			this.DispatchTargetedCacheUpdate(File.path);
 		})();
 
 		this.PendingLoads.set(File.path, LoadPromise);

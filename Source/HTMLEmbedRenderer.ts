@@ -25,7 +25,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 	private UsedCachedBlob = false;
 	private BlobUrlChecked = false;
 	private RenderToken = 0;
-	private IframeLoadTimeout: number | null = null;
+	private IframeLoadTimeout: { RenderToken: number; Timer: number } | null = null;
 
 	constructor(
 		ContainerElement: HTMLElement,
@@ -234,8 +234,11 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		this.ClearIframeLoadTimeout();
 		StartStage(this.File.path, 'iframeLoad');
 
-		this.IframeLoadTimeout = window.setTimeout(() => {
-			this.IframeLoadTimeout = null;
+		const TimeoutTimer = window.setTimeout(() => {
+			if (this.IframeLoadTimeout?.RenderToken === RenderToken) {
+				this.IframeLoadTimeout = null;
+			}
+
 			if (!this.IsRenderTokenCurrent(RenderToken)) {
 				return;
 			}
@@ -252,14 +255,15 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 				`Error rendering HTML embed: Timed out loading preview iframe after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds.`
 			);
 		}, HTML_LOAD_FAILURE_TIMEOUT_MS);
+		this.IframeLoadTimeout = { RenderToken, Timer: TimeoutTimer };
 
 		Iframe.addEventListener(
 			'load',
 			() => {
-				this.ClearIframeLoadTimeout();
 				if (!this.IsRenderTokenCurrent(RenderToken)) {
 					return;
 				}
+				this.ClearIframeLoadTimeout(RenderToken);
 
 				RecordStage(
 					this.File.path,
@@ -287,16 +291,17 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		Iframe.addEventListener(
 			'error',
 			() => {
-				this.ClearIframeLoadTimeout();
 				if (!this.IsRenderTokenCurrent(RenderToken)) {
 					return;
 				}
+				this.ClearIframeLoadTimeout(RenderToken);
 
 				this.Plugin.LogPluginError(
 					'load iframe',
 					new Error('Preview iframe failed to load'),
 					this.File.path
 				);
+				this.RenderToken++;
 				this.RenderError('Error rendering HTML embed: Preview iframe failed to load.');
 			},
 			{ once: true }
@@ -342,12 +347,18 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		this.IsDisposed = true;
 		this.RenderToken++;
 		this.ClearIframeLoadTimeout();
-		// The plugin owns blob URL cleanup.
 	}
 
-	private ClearIframeLoadTimeout(): void {
+	private ClearIframeLoadTimeout(RenderToken?: number): void {
 		if (this.IframeLoadTimeout !== null) {
-			window.clearTimeout(this.IframeLoadTimeout);
+			if (
+				RenderToken !== undefined &&
+				this.IframeLoadTimeout.RenderToken !== RenderToken
+			) {
+				return;
+			}
+
+			window.clearTimeout(this.IframeLoadTimeout.Timer);
 			this.IframeLoadTimeout = null;
 		}
 	}

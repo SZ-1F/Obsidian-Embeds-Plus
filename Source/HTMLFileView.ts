@@ -12,7 +12,7 @@ export class HTMLFileView extends FileView {
 	private readonly Plugin: HtmlViewerPlugin;
 	private CurrentFilePath: string | null = null;
 	private RenderToken = 0;
-	private IframeLoadTimeout: number | null = null;
+	private IframeLoadTimeout: { RenderToken: number; Timer: number } | null = null;
 
 	constructor(Leaf: WorkspaceLeaf, Plugin: HtmlViewerPlugin) {
 		super(Leaf);
@@ -131,8 +131,11 @@ export class HTMLFileView extends FileView {
 		}
 
 		this.ClearIframeLoadTimeout();
-		this.IframeLoadTimeout = window.setTimeout(() => {
-			this.IframeLoadTimeout = null;
+		const TimeoutTimer = window.setTimeout(() => {
+			if (this.IframeLoadTimeout?.RenderToken === RenderToken) {
+				this.IframeLoadTimeout = null;
+			}
+
 			if (!this.IsRenderTokenCurrent(RenderToken, FilePath)) {
 				return;
 			}
@@ -149,11 +152,16 @@ export class HTMLFileView extends FileView {
 				`Error loading file: Timed out loading preview iframe after ${HTML_LOAD_FAILURE_TIMEOUT_MS / 1000} seconds.`
 			);
 		}, HTML_LOAD_FAILURE_TIMEOUT_MS);
+		this.IframeLoadTimeout = { RenderToken, Timer: TimeoutTimer };
 
 		Iframe.addEventListener(
 			'load',
 			() => {
-				this.ClearIframeLoadTimeout();
+				if (!this.IsRenderTokenCurrent(RenderToken, FilePath)) {
+					return;
+				}
+
+				this.ClearIframeLoadTimeout(RenderToken);
 			},
 			{ once: true }
 		);
@@ -161,16 +169,17 @@ export class HTMLFileView extends FileView {
 		Iframe.addEventListener(
 			'error',
 			() => {
-				this.ClearIframeLoadTimeout();
 				if (!this.IsRenderTokenCurrent(RenderToken, FilePath)) {
 					return;
 				}
+				this.ClearIframeLoadTimeout(RenderToken);
 
 				this.Plugin.LogPluginError(
 					'load file view iframe',
 					new Error('Preview iframe failed to load'),
 					FilePath
 				);
+				this.RenderToken++;
 				this.RenderError('Error loading file: Preview iframe failed to load.');
 			},
 			{ once: true }
@@ -210,9 +219,16 @@ export class HTMLFileView extends FileView {
 		this.CurrentFilePath = null;
 	}
 
-	private ClearIframeLoadTimeout(): void {
+	private ClearIframeLoadTimeout(RenderToken?: number): void {
 		if (this.IframeLoadTimeout !== null) {
-			window.clearTimeout(this.IframeLoadTimeout);
+			if (
+				RenderToken !== undefined &&
+				this.IframeLoadTimeout.RenderToken !== RenderToken
+			) {
+				return;
+			}
+
+			window.clearTimeout(this.IframeLoadTimeout.Timer);
 			this.IframeLoadTimeout = null;
 		}
 	}
