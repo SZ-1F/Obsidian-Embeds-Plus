@@ -1,10 +1,11 @@
 {
   "id": "obsidian-embeds-plus",
   "name": "Embeds+",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minAppVersion": "0.15.0",
   "description": "View and embed HTML, MHTML and Web Archive files natively in Obsidian with full styling and inline preview support.",
   "author": "@SZ-1F",
   "authorUrl": "https://deoxie.com",
-  "isDesktopOnly": true
+  "fundingUrl": "https://ko-fi.com/sz1f9",
+  "isDesktopOnly": false
 }
