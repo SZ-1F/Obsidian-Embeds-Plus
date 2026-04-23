@@ -95,5 +95,5 @@ export function LogPerformanceSummary(FilePath: string, Context: string): void {
 		return;
 	}
 
-	console.log(`[Embeds-Plus Perf] ${Prefix} - ${Context}: ${Stages.join(', ')}`);
+	console.debug(`[Embeds-Plus Perf] ${Prefix} - ${Context}: ${Stages.join(', ')}`);
 }

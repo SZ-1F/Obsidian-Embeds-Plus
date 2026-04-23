@@ -35,8 +35,15 @@ export class PersistentCache {
 					return;
 				}
 
-				const { Id: _Id, ...Record } = Result;
-				Resolve(Record);
+				Resolve({
+					Path: Result.Path,
+					Mtime: Result.Mtime,
+					Version: Result.Version,
+					Html: Result.Html,
+					Hash: Result.Hash,
+					LastAccessed: Result.LastAccessed,
+					ByteSize: Result.ByteSize,
+				});
 			};
 
 			Request.onerror = () => Resolve(null);

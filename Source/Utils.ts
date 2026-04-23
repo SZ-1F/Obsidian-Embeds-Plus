@@ -94,7 +94,11 @@ export function WithTimeout<T>(
 			},
 			(ErrorValue) => {
 				window.clearTimeout(Timer);
-				Reject(ErrorValue);
+				Reject(
+					ErrorValue instanceof Error
+						? ErrorValue
+						: new Error(String(ErrorValue))
+				);
 			}
 		);
 	});

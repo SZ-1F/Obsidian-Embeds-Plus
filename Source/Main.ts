@@ -108,7 +108,7 @@ export default class HtmlViewerPlugin extends Plugin {
 	}
 
 	LogEmbedRendered(FilePath: string, DurationMs: number): void {
-		console.log(
+		console.debug(
 			`${this.LogPrefix} ${this.FormatEmbedLabel(FilePath)} embed rendered successfully in ${DurationMs.toFixed(2)}ms.`
 		);
 	}
