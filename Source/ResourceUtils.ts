@@ -51,12 +51,9 @@ export class ResourceIndex {
 			this.ResourcesByUrl.set(NormaliseUrl(Url.substring(5)), Entry);
 		}
 
-		try {
-			const DecodedUrl = decodeURIComponent(Url);
-			if (DecodedUrl !== Url) {
-				this.ResourcesByUrl.set(NormaliseUrl(DecodedUrl), Entry);
-			}
-		} catch {
+		const DecodedUrl = TryDecodeURIComponent(Url);
+		if (DecodedUrl !== null && DecodedUrl !== Url) {
+			this.ResourcesByUrl.set(NormaliseUrl(DecodedUrl), Entry);
 		}
 
 		const UrlParts = Url.split('/');
@@ -101,15 +98,15 @@ export class ResourceIndex {
 			}
 		}
 
-		try {
-			const DecodedHtmlUrl = NormaliseUrl(decodeURIComponent(HtmlUrl));
-			if (DecodedHtmlUrl !== NormalisedHtmlUrl) {
-				Entry = this.ResourcesByUrl.get(DecodedHtmlUrl);
+		const DecodedHtmlUrl = TryDecodeURIComponent(HtmlUrl);
+		if (DecodedHtmlUrl !== null) {
+			const NormalisedDecodedHtmlUrl = NormaliseUrl(DecodedHtmlUrl);
+			if (NormalisedDecodedHtmlUrl !== NormalisedHtmlUrl) {
+				Entry = this.ResourcesByUrl.get(NormalisedDecodedHtmlUrl);
 				if (Entry) {
 					return Entry;
 				}
 			}
-		} catch {
 		}
 
 		const Filename = HtmlUrl.split('/').pop()?.split('?')[0];
@@ -148,6 +145,14 @@ export class ResourceIndex {
 
 	getCssResources(): Array<{ Url: string; Content: string }> {
 		return this.CssResources;
+	}
+}
+
+function TryDecodeURIComponent(Value: string): string | null {
+	try {
+		return decodeURIComponent(Value);
+	} catch {
+		return null;
 	}
 }
 
