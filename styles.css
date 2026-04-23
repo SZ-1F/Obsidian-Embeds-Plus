@@ -59,6 +59,10 @@
 	overflow-x: auto;
 }
 
+.html-embed-iframe-hidden {
+	visibility: hidden;
+}
+
 .html-embed-native-live-preview .html-embed-iframe-container iframe {
 	border-radius: 0;
 }
@@ -265,4 +269,3 @@ blockquote .html-embed {
 		border: 1px solid #ccc;
 	}
 }
-

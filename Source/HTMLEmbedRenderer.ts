@@ -1,6 +1,5 @@
 import { MarkdownRenderChild, TFile } from 'obsidian';
 import {
-	HTML_EMBED_HEIGHT_PX,
 	HTML_EMBED_IFRAME_SANDBOX,
 	HTML_LOAD_FAILURE_TIMEOUT_MS,
 } from './Constants';
@@ -147,19 +146,12 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		const IframeContainer = ContainerElement.createDiv({
 			cls: 'html-embed-iframe-container',
 		});
-		IframeContainer.style.height = `${HTML_EMBED_HEIGHT_PX}px`;
-		IframeContainer.style.position = 'relative';
 
-		const Iframe = IframeContainer.createEl('iframe');
-		Iframe.style.width = '100%';
-		Iframe.style.height = `${HTML_EMBED_HEIGHT_PX}px`;
-		Iframe.style.border = 'none';
-		Iframe.style.display = 'block';
-		Iframe.style.overflow = 'auto';
+		const Iframe = IframeContainer.createEl('iframe', { cls: 'html-embed-iframe' });
 		Iframe.setAttribute('sandbox', HTML_EMBED_IFRAME_SANDBOX);
 
 		if (IsLoading) {
-			Iframe.style.visibility = 'hidden';
+			Iframe.addClass('html-embed-iframe-hidden');
 			return;
 		}
 
@@ -274,7 +266,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 			if (NewBlobUrl) {
 				this.RenderWithBlobUrl(Iframe, NewBlobUrl, RenderToken);
 			} else {
-				this.FallbackSyncRender(Iframe, HtmlContent);
+				this.FallbackSrcDocRender(Iframe, HtmlContent);
 			}
 		});
 	}
@@ -365,21 +357,12 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		);
 
 		Iframe.src = BlobUrl;
-		Iframe.style.visibility = 'visible';
+		Iframe.removeClass('html-embed-iframe-hidden');
 	}
 
-	private FallbackSyncRender(Iframe: HTMLIFrameElement, HtmlContent: string): void {
-		const IframeDocument = Iframe.contentDocument;
-		if (!IframeDocument) {
-			this.RenderError(
-				'Error rendering HTML embed: Unable to access iframe document.'
-			);
-			return;
-		}
-
-		IframeDocument.open();
-		IframeDocument.write(HtmlContent);
-		IframeDocument.close();
+	private FallbackSrcDocRender(Iframe: HTMLIFrameElement, HtmlContent: string): void {
+		Iframe.srcdoc = HtmlContent;
+		Iframe.removeClass('html-embed-iframe-hidden');
 	}
 
 	private RenderError(Message: string): void {
@@ -392,11 +375,6 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		);
 
 		const ErrorElement = this.containerEl.createDiv({ cls: 'html-embed-error' });
-		ErrorElement.style.padding = '12px';
-		ErrorElement.style.background = 'var(--background-secondary)';
-		ErrorElement.style.color = 'var(--text-error)';
-		ErrorElement.style.borderRadius = '4px';
-		ErrorElement.style.fontSize = '12px';
 		ErrorElement.textContent = Message;
 	}
 
