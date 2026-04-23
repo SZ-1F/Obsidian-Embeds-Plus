@@ -1,4 +1,5 @@
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
+import { StateEffect, Transaction } from '@codemirror/state';
 import {
 	editorInfoField as EditorInfoField,
 	editorLivePreviewField as EditorLivePreviewField,
@@ -36,8 +37,10 @@ export function CreateLivePreviewSuppressor(Plugin: HtmlViewerPlugin) {
 					return;
 				}
 
-				const HasCacheUpdate = Update.transactions.some((TransactionValue: any) =>
-					TransactionValue.effects.some((EffectValue: any) => EffectValue.is(HtmlCacheUpdateEffect))
+				const HasCacheUpdate = Update.transactions.some((TransactionValue: Transaction) =>
+					TransactionValue.effects.some((EffectValue: StateEffect<unknown>) =>
+						EffectValue.is(HtmlCacheUpdateEffect)
+					)
 				);
 
 				if (
