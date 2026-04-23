@@ -139,7 +139,7 @@ export function CreateLivePreviewSuppressor(Plugin: HtmlViewerPlugin) {
 						ContentHashValue,
 					});
 
-					void Renderer.onload();
+					Renderer.onload();
 				}
 
 				this.CleanupMissingEmbeds(SeenEmbeds);
