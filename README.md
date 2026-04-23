@@ -32,7 +32,7 @@ There are also many tutorials for capturing Web Archives using Apple's Shortcuts
 3. Add the URL for this GitHub repository (https://github.com/SZ-1F/obsidian-embeds-plus).
 You can either choose to install the latest version (recommended), or manually select a specific release.
 ### Manual Installation
-1. Create a directory for the plugin: `/path/to/your/vault/.obsidian/plugins/obsidian-embeds-plus`.
+1. Create a directory for the plugin: `/path/to/your/vault/.obsidian/plugins/embeds-plus`.
 2. Download & extract the `.zip` archive for the latest version in Releases.
 3. Place `main.js`, `manifest.json`, and `styles.css` inside the newly-created plugin folder.
 ## Credits
