@@ -67,11 +67,7 @@ export class HTMLFileView extends FileView {
 	private RenderHtml(HtmlContent: string, RenderToken: number): void {
 		this.contentEl.empty();
 
-		const Iframe = this.contentEl.createEl('iframe');
-		Iframe.style.width = '100%';
-		Iframe.style.height = '100%';
-		Iframe.style.border = 'none';
-		Iframe.style.display = 'block';
+		const Iframe = this.contentEl.createEl('iframe', { cls: 'html-file-view-iframe' });
 		Iframe.setAttribute('sandbox', HTML_EMBED_IFRAME_SANDBOX);
 
 		this.RenderIframeAsync(Iframe, HtmlContent, RenderToken);
@@ -96,27 +92,15 @@ export class HTMLFileView extends FileView {
 				return;
 			}
 
-			try {
-				if (FilePath) {
-					const BlobUrl = this.Plugin.GetOrCreateBlobUrl(FilePath);
-					if (BlobUrl) {
-						this.RenderWithBlobUrl(Iframe, BlobUrl, RenderToken, FilePath);
-						return;
-					}
-				}
-
-				this.FallbackSyncRender(Iframe, HtmlContent);
-			} catch (ErrorValue) {
-				try {
-					this.FallbackSyncRender(Iframe, HtmlContent);
-				} catch (FallbackError) {
-					this.Plugin.LogPluginError(
-						'render file view',
-						FallbackError,
-						this.file?.path
-					);
+			if (FilePath) {
+				const BlobUrl = this.Plugin.GetOrCreateBlobUrl(FilePath);
+				if (BlobUrl) {
+					this.RenderWithBlobUrl(Iframe, BlobUrl, RenderToken, FilePath);
+					return;
 				}
 			}
+
+			this.FallbackSrcDocRender(Iframe, HtmlContent);
 		});
 	}
 
@@ -188,27 +172,15 @@ export class HTMLFileView extends FileView {
 		Iframe.src = BlobUrl;
 	}
 
-	private FallbackSyncRender(Iframe: HTMLIFrameElement, HtmlContent: string): void {
-		const IframeDocument = Iframe.contentDocument;
-		if (!IframeDocument) {
-			this.Plugin.LogPluginError(
-				'render file view',
-				new Error('Unable to access iframe document'),
-				this.file?.path
-			);
-			this.RenderError('Error loading file: Unable to access iframe document.');
-			return;
-		}
-
-		IframeDocument.open();
-		IframeDocument.write(HtmlContent);
-		IframeDocument.close();
+	private FallbackSrcDocRender(Iframe: HTMLIFrameElement, HtmlContent: string): void {
+		Iframe.srcdoc = HtmlContent;
 	}
 
 	private RenderError(Message: string): void {
 		this.contentEl.empty();
-		const ErrorElement = this.contentEl.createDiv({ cls: 'html-embed-error' });
-		ErrorElement.style.margin = '12px';
+		const ErrorElement = this.contentEl.createDiv({
+			cls: 'html-embed-error html-file-view-error',
+		});
 		ErrorElement.textContent = Message;
 	}
 
