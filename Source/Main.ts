@@ -292,10 +292,10 @@ export default class HtmlViewerPlugin extends Plugin {
 
 		const ExistingTimer = this.DebounceTimers.get(File.path);
 		if (ExistingTimer !== undefined) {
-			window.clearTimeout(ExistingTimer);
+			activeWindow.clearTimeout(ExistingTimer);
 		}
 
-		const Timer = window.setTimeout(() => {
+		const Timer = activeWindow.setTimeout(() => {
 			void this.LoadAndCacheHtml(File).catch((ErrorValue) => {
 				this.LogPluginError('refresh cache', ErrorValue, File.path);
 			});
@@ -499,7 +499,7 @@ export default class HtmlViewerPlugin extends Plugin {
 	}
 
 	onunload() {
-		this.DebounceTimers.forEach((Timer) => window.clearTimeout(Timer));
+		this.DebounceTimers.forEach((Timer) => activeWindow.clearTimeout(Timer));
 
 		// Revoke all blob URLs to prevent memory leaks.
 		for (const Entry of this.Cache.values()) {

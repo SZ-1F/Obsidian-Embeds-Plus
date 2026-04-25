@@ -229,7 +229,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 	}
 
 	private CreateSvgElement(TagName: string, Attributes: Record<string, string>): SVGElement {
-		const SvgElement = document.createElementNS('http://www.w3.org/2000/svg', TagName);
+		const SvgElement = activeDocument.createElementNS('http://www.w3.org/2000/svg', TagName);
 		for (const [AttributeName, AttributeValue] of Object.entries(Attributes)) {
 			SvgElement.setAttribute(AttributeName, AttributeValue);
 		}
@@ -283,7 +283,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		this.ClearIframeLoadTimeout();
 		StartStage(this.File.path, 'iframeLoad');
 
-		const TimeoutTimer = window.setTimeout(() => {
+		const TimeoutTimer = activeWindow.setTimeout(() => {
 			if (this.IframeLoadTimeout?.RenderToken === RenderToken) {
 				this.IframeLoadTimeout = null;
 			}
@@ -393,7 +393,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 				return;
 			}
 
-			window.clearTimeout(this.IframeLoadTimeout.Timer);
+			activeWindow.clearTimeout(this.IframeLoadTimeout.Timer);
 			this.IframeLoadTimeout = null;
 		}
 	}

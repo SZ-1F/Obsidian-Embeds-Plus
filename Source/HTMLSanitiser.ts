@@ -118,7 +118,7 @@ async function FreezeGifImages(DocumentValue: Document): Promise<void> {
 				const Img = new Image();
 				Img.onload = () => {
 					try {
-						const Canvas = document.createElement('canvas');
+						const Canvas = activeDocument.createElement('canvas');
 						Canvas.width = Img.naturalWidth;
 						Canvas.height = Img.naturalHeight;
 						const Ctx = Canvas.getContext('2d');

@@ -115,7 +115,7 @@ export class HTMLFileView extends FileView {
 		}
 
 		this.ClearIframeLoadTimeout();
-		const TimeoutTimer = window.setTimeout(() => {
+		const TimeoutTimer = activeWindow.setTimeout(() => {
 			if (this.IframeLoadTimeout?.RenderToken === RenderToken) {
 				this.IframeLoadTimeout = null;
 			}
@@ -201,7 +201,7 @@ export class HTMLFileView extends FileView {
 				return;
 			}
 
-			window.clearTimeout(this.IframeLoadTimeout.Timer);
+			activeWindow.clearTimeout(this.IframeLoadTimeout.Timer);
 			this.IframeLoadTimeout = null;
 		}
 	}

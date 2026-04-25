@@ -66,7 +66,7 @@ export function ScheduleNonBlockingRender(
 	Callback: () => void,
 	TimeoutMs = NON_BLOCKING_RENDER_TIMEOUT_MS
 ): void {
-	const WindowObject = window as unknown as {
+	const WindowObject = activeWindow as unknown as {
 		requestIdleCallback?: (Callback: () => void, Options?: { timeout: number }) => number;
 	};
 	if (typeof WindowObject.requestIdleCallback === 'function') {
@@ -83,17 +83,17 @@ export function WithTimeout<T>(
 	ErrorMessage: string
 ): Promise<T> {
 	return new Promise<T>((Resolve, Reject) => {
-		const Timer = window.setTimeout(() => {
+		const Timer = activeWindow.setTimeout(() => {
 			Reject(new Error(ErrorMessage));
 		}, TimeoutMs);
 
 		PromiseValue.then(
 			(Result) => {
-				window.clearTimeout(Timer);
+				activeWindow.clearTimeout(Timer);
 				Resolve(Result);
 			},
 			(ErrorValue) => {
-				window.clearTimeout(Timer);
+				activeWindow.clearTimeout(Timer);
 				Reject(
 					ErrorValue instanceof Error
 						? ErrorValue
