@@ -65,7 +65,7 @@ export default class HtmlViewerPlugin extends Plugin {
 
 	private readonly LogPrefix = '[Embeds-Plus]:';
 
-	async onload() {
+	onload() {
 		this.registerView(
 			VIEW_TYPE_HTML,
 			(Leaf: WorkspaceLeaf) => new HTMLFileView(Leaf, this)

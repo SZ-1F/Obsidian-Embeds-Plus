@@ -184,11 +184,12 @@ export class HTMLFileView extends FileView {
 		ErrorElement.textContent = Message;
 	}
 
-	async onUnloadFile(_File: TFile) {
+	onUnloadFile(_File: TFile): Promise<void> {
 		// The plugin owns blob URL cleanup.
 		this.RenderToken++;
 		this.ClearIframeLoadTimeout();
 		this.CurrentFilePath = null;
+		return Promise.resolve();
 	}
 
 	private ClearIframeLoadTimeout(RenderToken?: number): void {
