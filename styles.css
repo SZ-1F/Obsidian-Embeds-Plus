@@ -1,11 +1,11 @@
-
-
 .markdown-source-view.mod-cm6 .internal-embed[src$=".html"]:not(.html-embed),
 .markdown-source-view.mod-cm6 .internal-embed[alt$=".html"]:not(.html-embed),
 .markdown-source-view.mod-cm6 .internal-embed[src$=".mhtml"]:not(.html-embed),
 .markdown-source-view.mod-cm6 .internal-embed[alt$=".mhtml"]:not(.html-embed),
 .markdown-source-view.mod-cm6 .internal-embed[src$=".webarchive"]:not(.html-embed),
-.markdown-source-view.mod-cm6 .internal-embed[alt$=".webarchive"]:not(.html-embed) {
+.markdown-source-view.mod-cm6 .internal-embed[alt$=".webarchive"]:not(.html-embed),
+.markdown-source-view.mod-cm6 .internal-embed[src$=".enex"]:not(.html-embed),
+.markdown-source-view.mod-cm6 .internal-embed[alt$=".enex"]:not(.html-embed) {
 	display: none !important;
 }
 

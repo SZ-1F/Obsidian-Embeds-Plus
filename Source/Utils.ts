@@ -1,6 +1,21 @@
 import { NON_BLOCKING_RENDER_TIMEOUT_MS } from './Constants';
 
 /**
+ * Helper function to truncate noisy outputs.
+ *
+ * @param Original string: Original string to be truncated.
+ * @param Length number: Maximum number of characters.
+ * @returns string: Truncated or original string.
+ */
+export function Truncate(Original: string, Length: number = 30): string {
+  if (Original.length > 10) {
+    let Truncated: string = (Original.substring(0, (Length - 1))) + "...";
+    return Truncated;
+  }
+  return Original;
+}
+
+/**
  * Returns a Uint8Array so parser code can handle a single binary type.
  */
 export function EnsureUint8Array(Data: Uint8Array | ArrayBuffer): Uint8Array {

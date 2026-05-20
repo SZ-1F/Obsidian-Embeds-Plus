@@ -34,6 +34,7 @@ import {
 	LogPerformanceSummary,
 } from './Performance';
 import { PersistentCache, type PersistentCacheRecord } from './PersistentCache';
+import { ParseENEX } from './LibENEX/ENEXParser';
 
 interface MarkdownViewWithCm extends MarkdownView {
 	editor: MarkdownView['editor'] & {
@@ -70,7 +71,7 @@ export default class HtmlViewerPlugin extends Plugin {
 			VIEW_TYPE_HTML,
 			(Leaf: WorkspaceLeaf) => new HTMLFileView(Leaf, this)
 		);
-		this.registerExtensions(['html', 'mhtml', 'mht', 'webarchive'], VIEW_TYPE_HTML);
+		this.registerExtensions(['html', 'mhtml', 'mht', 'webarchive', 'enex'], VIEW_TYPE_HTML);
 
 		this.registerEditorExtension(CreateLivePreviewSuppressor(this));
 
@@ -327,7 +328,14 @@ export default class HtmlViewerPlugin extends Plugin {
 			const ParsedHtml = ParseMHTML(Content);
 			RecordStage(File.path, 'parseMHTML', EndStage(File.path, 'parseMHTML'));
 			return ParsedHtml;
-		}
+    }
+
+    if (Ext === 'enex') {
+      StartStage(File.path, 'parseENEX');
+      const ParsedHtml = ParseENEX(Content);
+      RecordStage(File.path, 'parseENEX', EndStage(File.path, 'parseENEX'));
+      return ParsedHtml;
+    }
 
 		return Content;
 	}
