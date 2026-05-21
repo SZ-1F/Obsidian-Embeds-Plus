@@ -10,7 +10,7 @@
 		"noImplicitAny": true,
 		"noImplicitThis": true,
 		"noImplicitReturns": true,
-		"moduleResolution": "node",
+		"moduleResolution": "bundler",
 		"importHelpers": true,
 		"isolatedModules": true,
 		"strictNullChecks": true,
@@ -23,7 +23,8 @@
 			"ES6",
 			"ES7",
 			"ES2017"
-		]
+		],
+		"types": ["node"]
 	},
 	"include": [
 		"Source/**/*.ts"
