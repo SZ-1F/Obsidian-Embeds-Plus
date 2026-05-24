@@ -1,6 +1,6 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { PlaceholderEl } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, NoteMetadata, PlaceholderEl, GenerateNoteHeader } from 'Source/LibENEX/ENBlockHandlers';
 
 /**
 * Main parsing function for `.enex` files.
@@ -61,7 +61,6 @@ export function ParseENEX($RawENEXString: string): string {
 
   // Get all elements. Use query selector to get all descendants.
   ElementLoop: for (const El of NoteBody.children) {
-    ENCustomPropertiesRegex.lastIndex = 0; // Reset regex state for each new element.
     const Tag: string = El.tagName.toLowerCase();
 
     // Check for custom Evernote tags.
@@ -89,7 +88,7 @@ export function ParseENEX($RawENEXString: string): string {
         }
         else {
           // <div> with an unknown custom property.
-          console.debug(`Element "${Tag}" (${El.toString()}) has an unsupported property: ${PropertyName}`)
+          console.debug(`Element "${Tag}" has an unsupported property: ${PropertyName}`)
           HTMLOutputArray.push(PlaceholderEl);
           continue ElementLoop;
         }
@@ -99,6 +98,7 @@ export function ParseENEX($RawENEXString: string): string {
     HTMLOutputArray.push(El.toString());
   }
   // Add HTML boilerplate to final output.
+  HTMLOutputArray.unshift(ParseNoteMetadata(Note));
   HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><body class=""><en-note>`);
   HTMLOutputArray.push('</en-note></body></html>');
 
