@@ -18,6 +18,13 @@ export interface NoteMetadata {
   Tags: Array<string>;
 }
 
+/**
+* Generates the HTML block that is injected above the note body, containing
+* metadata such as author, creation time, tags, etc.
+*
+* @param {NoteMetadata} NoteMetadata Extracted note metadata.
+* @returns {string} - HTML string displaying note properties.
+*/
 export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
   let HTMLTags: string = "";
   NoteMetadata.Tags.forEach((Tag) => {
@@ -32,11 +39,17 @@ export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
         <span class="en-meta-row en-meta-updated"><b>Updated:</b> ${NoteMetadata.UpdatedDate || "-"}</span>
       </div>
       <div class="en-properties-tags">${HTMLTags || ""}</div>
-    </div>`;
+    </div>`.replace(/\n\s*/g, "");
   return Header;
 }
 
-// Parses metadata such as note title, author, export date, etc.
+/**
+* Extracts note metadata from ENEX files.
+* Parses to GenerateNoteHeader() to get the final HTML output string.
+*
+* @param {HTMLElement} Note Content of the entire note, after being parsed as DOM.
+* @returns {string} - HTML string with note metadata.
+*/
 export function ParseNoteMetadata(Note: HTMLElement): string {
   // Get child elements from metadata block.
   let MetadataNodes: HTMLElement[] = Note.querySelectorAll(`
