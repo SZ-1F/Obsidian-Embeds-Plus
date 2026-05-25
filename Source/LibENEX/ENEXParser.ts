@@ -24,14 +24,22 @@ export function ParseENEX($RawENEXString: string): string {
   // Define regular expression for matching Evernote's custom properties.
   const ENCustomPropertiesRegex: RegExp = /(--en-[\w-]+)\s*:\s*([^;]+)/g;
 
-  // List of known Evernote custom properties. Elements covered by this list need custom handling.
-  const KnownENElements: Set<string> = new Set([
+  // List of ignored Evernote metadata properties.
+  const IgnoredENProps: Set<string> = new Set([
     // Custom metadata properties.
     "--en-chs",
     "--en-content-hash",
     "--en-nodeId",
     "--en-id",
     "--en-lineWrapping",
+    "--en-isCollapsed",
+    "--en-toggle",
+    "--en-expanded",
+    "--en-requiredFeatures",
+  ]);
+
+  // List of known Evernote custom properties. Elements covered by this list need custom handling.
+  const KnownENElements: Set<string> = new Set([
     // Custom properties.
     "--en-calendarEvent",
     "--en-calendarBlock",
@@ -40,7 +48,7 @@ export function ParseENEX($RawENEXString: string): string {
     "--en-tableofcontents",
     "--en-todo",
     // Custom Evernote tags.
-    // "en-media"
+    "en-media"
   ]);
 
   const KnownHTMLElements:Set<string> = new Set([
@@ -86,7 +94,7 @@ export function ParseENEX($RawENEXString: string): string {
           // Hand over to custom handler, then push result to array.
           // Continue the loop.
         }
-        else {
+        else if (!IgnoredENProps.has(PropertyName)) {
           // <div> with an unknown custom property.
           console.debug(`Element "${Tag}" has an unsupported property: ${PropertyName}`)
           HTMLOutputArray.push(PlaceholderEl);
