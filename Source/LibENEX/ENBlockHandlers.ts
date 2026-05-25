@@ -6,6 +6,8 @@ import { HTMLElement } from "node-html-parser";
 
 // Define a placeholder element to display for unknown element types.
 export const PlaceholderEl: string = `<div class="en-block-unsupported"><p>This element is not currently supported in Embeds+</p></div>`;
+export const MediaPlaceholderEl: string = `<div class="en-block-unsupported-media"><p>Unsupported attachment</p></p></div>`;
+
 
 // Interface for validating note metadata.
 export interface NoteMetadata {
@@ -75,4 +77,16 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
     Tags: NoteTags.map((El) => El.textContent) || [''],
   }
   return GenerateNoteHeader(NoteMetadata)
+}
+
+export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<string, string>): string | null {
+  // Check if the element is an image.
+  if (MediaEl.getAttribute("type") === "image/png") {
+    const ElementHash: string = MediaEl.getAttribute("hash") || '';
+    let HTMLOutput: string = `
+      <img src="data:image/png;base64, ${ResourceLookupTable[ElementHash] || null}" alt="Embedded Image" />
+    `
+    return HTMLOutput;
+  }
+  return MediaPlaceholderEl;
 }

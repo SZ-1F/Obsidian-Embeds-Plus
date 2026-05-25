@@ -1,6 +1,7 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, NoteMetadata, PlaceholderEl, GenerateNoteHeader } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, NoteMetadata, PlaceholderEl, GenerateNoteHeader, MediaHandler } from 'Source/LibENEX/ENBlockHandlers';
+import SparkMD5 from 'spark-md5';
 
 /**
 * Main parsing function for `.enex` files.
@@ -12,14 +13,18 @@ import { ParseNoteMetadata, NoteMetadata, PlaceholderEl, GenerateNoteHeader } fr
 * @throws {Error} - Unable to parse ENEX content (not valid XML, etc.).
 * @returns {string} - Converted HTML string containing parsed elements from ENEX file.
 */
-export function ParseENEX($RawENEXString: string): string {
+export function ParseENEX(RawENEXString: string): string {
   // Parse the raw ENEX string, convert it to DOM.
-  const ENEXDOM = parse($RawENEXString);
+  const ENEXDOM = parse(RawENEXString);
   if (!ENEXDOM) throw new Error("Error: Failed to parse ENEX content.");
 
   // Extract only the first note & its main contents.
   const Note: HTMLElement | null = (ENEXDOM.getElementsByTagName("note"))[0] || null;
   const NoteBody: HTMLElement | null = (Note.getElementsByTagName("en-note"))[0] || null;
+
+  // Extract resources, generate a lookup table.
+  const Resources: HTMLElement[] | null = Note.getElementsByTagName("resource") || null;
+  const ResourceLookupTable: Record<string, string> = GetResourceTable(Resources);
 
   // Define regular expression for matching Evernote's custom properties.
   const ENCustomPropertiesRegex: RegExp = /(--en-[\w-]+)\s*:\s*([^;]+)/g;
@@ -51,19 +56,6 @@ export function ParseENEX($RawENEXString: string): string {
     "en-media"
   ]);
 
-  const KnownHTMLElements:Set<string> = new Set([
-    // Block.
-    "div", "p", "h1", "h2", "h3", "h4", "h5", "h6",
-    "ul", "ol", "li", "blockquote", "pre", "address",
-    "center", "hr", "br", "table", "thead", "tbody",
-    "tfoot", "tr", "th", "td", "col", "colgroup",
-    // Inline.
-    "span", "a", "img", "b", "strong", "i", "em",
-    "u", "s", "strike", "del", "sup", "sub", "code",
-    "tt", "abbr", "acronym", "cite", "dfn", "kbd",
-    "samp", "var", "q", "big", "small", "font",
-  ]);
-
   // Initialise final HTML string that will be passed to renderer.
   let HTMLOutputArray: Array<string> = [];
 
@@ -75,7 +67,9 @@ export function ParseENEX($RawENEXString: string): string {
     if (Tag.startsWith("en-")) {
       if (KnownENElements.has(Tag)) {
         // Pass to custom handler.
-        // Continue Element Loop.
+        let ParsedEl: string | null = (MediaHandler(El, ResourceLookupTable)) || null;
+        if (ParsedEl) HTMLOutputArray.push(ParsedEl);
+        continue ElementLoop;
       }
       else {
         console.debug(`Tag name "${Tag}" is not supported!`)
@@ -111,4 +105,33 @@ export function ParseENEX($RawENEXString: string): string {
   HTMLOutputArray.push('</en-note></body></html>');
 
   return (HTMLOutputArray.join(""));
+}
+
+/**
+* Helper function to generate a lookup table for embedded resources.
+*
+* Takes each <resource> element, determines the MD5 hash, and returns a lookup table
+* containing the raw Base64 encoded data and the hash.
+*
+* @param {HTMLElement[]} Resources The full contents of an ENEX file (single note) as a string.
+* @returns {Record<string, string>} Lookup table for all resources.
+*/
+export function GetResourceTable(Resources: HTMLElement[]): Record<string, string> {
+  // Get all resource elements, generate a resource to hash table.
+  let ResourceLookupTable: Record<string, string> = {};
+  Resources.forEach((Resource) => {
+    // Get the child element containing the B64 data for the resource.
+    const RawBase64: string = Resource.querySelector('data')
+      ?.textContent
+      ?.replace(/\s+/g, '')
+      ?? '';
+
+    // Get the MD5 hash corresponding to the resource.
+    const Bytes = Uint8Array.from(atob(RawBase64), c => c.charCodeAt(0));
+    const Hash: string = SparkMD5.ArrayBuffer.hash(Bytes.buffer);
+
+    // Add the record to the lookup table.
+    ResourceLookupTable[Hash] = RawBase64;
+  })
+  return ResourceLookupTable;
 }
