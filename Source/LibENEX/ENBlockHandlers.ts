@@ -3,11 +3,7 @@
  */
 
 import { HTMLElement } from "node-html-parser";
-
-// Define a placeholder element to display for unknown element types.
-export const PlaceholderEl: string = `<div class="en-block-unsupported"><p>This element is not currently supported in Embeds+</p></div>`;
-export const MediaPlaceholderEl: string = `<div class="en-block-unsupported-media"><p>Unsupported attachment</p></p></div>`;
-
+import { PlaceholderEl, MediaPlaceholderEl } from 'Source/Constants';
 
 // Interface for validating note metadata.
 export interface NoteMetadata {
@@ -86,16 +82,13 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
 * @param {HTMLElement} MediaEl HTML element corresponding to the en-media tag.
 * @returns {string} - Converted HTML string with an image, or placeholder element.
 */
-export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<string, string>): string | null {
+export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<string, string>): string {
   // Check if the element is an image.
   if (MediaEl.getAttribute("type") === "image/png") {
     const ElementHash: string = MediaEl.getAttribute("hash") || '';
-    if (ResourceLookupTable[ElementHash]) {
-      let HTMLOutput: string = `
-        <img src="data:image/png;base64, ${ResourceLookupTable[ElementHash]}" alt="Embedded Image" />
-      `
-      return HTMLOutput;
-    }
+    let HTMLOutput: string = (ResourceLookupTable[ElementHash])
+      ? `<img src="data:image/png;base64, ${ResourceLookupTable[ElementHash]}" alt="Embedded Image" />`
+      : MediaPlaceholderEl;
   }
   return MediaPlaceholderEl;
 }

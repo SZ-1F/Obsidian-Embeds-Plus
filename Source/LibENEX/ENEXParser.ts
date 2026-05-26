@@ -1,6 +1,7 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, NoteMetadata, PlaceholderEl, GenerateNoteHeader, MediaHandler } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, NoteMetadata, GenerateNoteHeader, MediaHandler } from 'Source/LibENEX/ENBlockHandlers';
+import { IgnoredENProps, KnownENElements, ENCustomPropertiesRegex, PlaceholderEl } from 'Source/Constants';
 import SparkMD5 from 'spark-md5';
 
 /**
@@ -14,50 +15,19 @@ import SparkMD5 from 'spark-md5';
 * @returns {string} - Converted HTML string containing parsed elements from ENEX file.
 */
 export function ParseENEX(RawENEXString: string): string {
-  // Parse the raw ENEX string, convert it to DOM.
-  const ENEXDOM = parse(RawENEXString);
-  if (!ENEXDOM) throw new Error("Error: Failed to parse ENEX content.");
-
-  // Extract only the first note & its main contents.
+  // Parse the raw ENEX string, convert it to DOM. Extract only the first note & its main contents.
+  const ENEXDOM = parse(RawENEXString) || null;
   const Note: HTMLElement | null = (ENEXDOM.getElementsByTagName("note"))[0] || null;
   const NoteBody: HTMLElement | null = (Note.getElementsByTagName("en-note"))[0] || null;
+
+  if ((!ENEXDOM) || (!Note) || (!NoteBody)) throw new Error("Error: Parsing failure: unable to extract note content.");
+
+  // Initialise final HTML string that will be passed to renderer.
+  let HTMLOutputArray: Array<string> = [];
 
   // Extract resources, generate a lookup table.
   const Resources: HTMLElement[] | null = Note.getElementsByTagName("resource") || null;
   const ResourceLookupTable: Record<string, string> = GetResourceTable(Resources);
-
-  // Define regular expression for matching Evernote's custom properties.
-  const ENCustomPropertiesRegex: RegExp = /(--en-[\w-]+)\s*:\s*([^;]+)/g;
-
-  // List of ignored Evernote metadata properties.
-  const IgnoredENProps: Set<string> = new Set([
-    // Custom metadata properties.
-    "--en-chs",
-    "--en-content-hash",
-    "--en-nodeId",
-    "--en-id",
-    "--en-lineWrapping",
-    "--en-isCollapsed",
-    "--en-toggle",
-    "--en-expanded",
-    "--en-requiredFeatures",
-  ]);
-
-  // List of known Evernote custom properties. Elements covered by this list need custom handling.
-  const KnownENElements: Set<string> = new Set([
-    // Custom properties.
-    "--en-calendarEvent",
-    "--en-calendarBlock",
-    "--en-codeblock",
-    "--en-task-group",
-    "--en-tableofcontents",
-    "--en-todo",
-    // Custom Evernote tags.
-    "en-media"
-  ]);
-
-  // Initialise final HTML string that will be passed to renderer.
-  let HTMLOutputArray: Array<string> = [];
 
   // Get all elements. Use query selector to get all descendants.
   ElementLoop: for (const El of NoteBody.children) {

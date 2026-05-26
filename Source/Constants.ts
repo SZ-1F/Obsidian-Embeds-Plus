@@ -19,3 +19,41 @@ export function IsHtmlEmbedExtension(Extension: string): boolean {
 export function IsHtmlViewExtension(Extension: string): boolean {
 	return HtmlViewExtensions.has(Extension.toLowerCase());
 }
+
+/**
+ * Constants for ENEX parsing.
+*/
+
+// Define regular expression for matching Evernote's custom properties.
+export const ENCustomPropertiesRegex: RegExp = /(--en-[\w-]+)\s*:\s*([^;]+)/g;
+
+// List of ignored Evernote metadata properties.
+export const IgnoredENProps: Set<string> = new Set([
+  // Custom metadata properties.
+  "--en-chs",
+  "--en-content-hash",
+  "--en-nodeId",
+  "--en-id",
+  "--en-lineWrapping",
+  "--en-isCollapsed",
+  "--en-toggle",
+  "--en-expanded",
+  "--en-requiredFeatures",
+]);
+
+// List of known Evernote custom properties. Elements covered by this list need custom handling.
+export const KnownENElements: Set<string> = new Set([
+  // Custom properties.
+  "--en-calendarEvent",
+  "--en-calendarBlock",
+  "--en-codeblock",
+  "--en-task-group",
+  "--en-tableofcontents",
+  "--en-todo",
+  // Custom Evernote tags.
+  "en-media"
+]);
+
+// Define a placeholder element to display for unknown element types.
+export const PlaceholderEl: string = `<div class="en-block-unsupported"><p>This element is not currently supported in Embeds+</p></div>`;
+export const MediaPlaceholderEl: string = `<div class="en-block-unsupported-media"><p>Unsupported attachment</p></p></div>`;
