@@ -79,14 +79,27 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
   return GenerateNoteHeader(NoteMetadata)
 }
 
+/**
+* Converts <en-media> elements to standard HTML <img> tags.
+* Generates a lookup table containing media hashes and their Base64 content.
+*
+* @param {HTMLElement} MediaEl HTML element corresponding to the en-media tag.
+* @returns {string} - Converted HTML string with an image, or placeholder element.
+*/
 export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<string, string>): string | null {
   // Check if the element is an image.
   if (MediaEl.getAttribute("type") === "image/png") {
     const ElementHash: string = MediaEl.getAttribute("hash") || '';
-    let HTMLOutput: string = `
-      <img src="data:image/png;base64, ${ResourceLookupTable[ElementHash] || null}" alt="Embedded Image" />
-    `
-    return HTMLOutput;
+    if (ResourceLookupTable[ElementHash]) {
+      let HTMLOutput: string = `
+        <img src="data:image/png;base64, ${ResourceLookupTable[ElementHash]}" alt="Embedded Image" />
+      `
+      return HTMLOutput;
+    }
   }
   return MediaPlaceholderEl;
+}
+
+export function TasksHandler() {
+
 }
