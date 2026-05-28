@@ -16,6 +16,18 @@ export interface NoteMetadata {
   Tags: Array<string>;
 }
 
+// Interface for validating note metadata.
+export interface TaskMetadata {
+  TaskTitle: string;
+  Status: "completed" | "open";
+  Flagged: boolean;
+  Recurrence?: string;
+  DueDate?: string;
+  Description?: string;
+  Reminders?: Array<string>;
+  ReminderTimezone?: string;
+}
+
 /**
 * Generates the HTML block that is injected above the note body, containing
 * metadata such as author, creation time, tags, etc.
@@ -39,6 +51,29 @@ export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
       <div class="en-properties-tags">${HTMLTags || ""}</div>
     </div>`.replace(/\n\s*/g, "");
   return Header;
+}
+
+/**
+* Generates a HTML block for tasks that is injected into DOM for rendering.
+* Inlcudes metadata such as title, reminders, flags, etc.
+*
+* @param {TaskMetadata} TaskMetadata All metadata (i.e. child elements between <task> nodes).
+* @returns {string} - HTML string, complete, styles task block.
+*/
+export const GenerateTaskEl = (TaskMetadata: TaskMetadata): string => {
+  let TaskEl: string = `
+    <div class="en-task" data-status="${TaskMetadata.Status}">
+      <div class="en-task-checkbox"></div>
+      <div class="en-task-title">${TaskMetadata.TaskTitle}</div>
+      <div class="en-task-date">${TaskMetadata.DueDate || ""}</div>
+      <div class="en-task-metadata">
+        <span class="en-task-recurrence">${TaskMetadata.Recurrence || ""}</span>
+        <span class="en-task-flag">${(TaskMetadata.Flagged) === true ? "true" : ""}</span>
+        <span class="en-task-reminder">${(TaskMetadata.Reminders) ? "true" : ""}</span>
+      </div>
+    </div>
+  `.replace(/\n\s*/g, "");
+  return TaskEl;
 }
 
 /**
@@ -94,6 +129,38 @@ export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<s
   return HTMLOutput;
 }
 
-export function TasksHandler() {
+export function TasksHandler(Note: HTMLElement): string | null {
+  // Get child elements from metadata block.
+  let HTMLOutput: string = "";
+  let TaskNodes: HTMLElement[] | null = Note.querySelectorAll(`task`) || null;
+  if (!TaskNodes) return TaskNodes;
 
+  TaskNodes.forEach((TaskEl: HTMLElement) => {
+    let ReminderNodes: Array<string> = [];
+
+    // Extract reminder dates (if any).
+    TaskEl.querySelectorAll("reminder")
+      .forEach((ReminderNode: HTMLElement) => {
+        ReminderNodes.push(
+          ReminderNode
+            .querySelector("reminderdate")
+            ?.textContent || "No Date"
+        )
+    })
+
+    // Extract the rest of the metadata.
+    let TaskMetadata: TaskMetadata = {
+      TaskTitle: TaskEl.querySelector("title")?.textContent.trim() || "-",
+      Status: ((TaskEl.querySelector("taskstatus")?.textContent) === "completed") ? 'completed' : 'open',
+      Flagged: (TaskEl.querySelector("taskflag")?.textContent === "true") ? true : false,
+      Recurrence: TaskEl.querySelector("recurrence")?.textContent,
+      DueDate: TaskEl.querySelector("duedate")?.textContent,
+      Description: undefined,
+      Reminders: (ReminderNodes.length) ? ReminderNodes : undefined,
+      ReminderTimezone: TaskEl.querySelector("timezone")?.textContent
+    }
+    console.debug(TaskMetadata)
+    HTMLOutput += GenerateTaskEl(TaskMetadata);
+  })
+  return HTMLOutput;
 }

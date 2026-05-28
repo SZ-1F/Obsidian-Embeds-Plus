@@ -1,6 +1,6 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, NoteMetadata, GenerateNoteHeader, MediaHandler } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, NoteMetadata, GenerateNoteHeader, MediaHandler, TasksHandler } from 'Source/LibENEX/ENBlockHandlers';
 import { IgnoredENProps, KnownENElements, ENCustomPropertiesRegex, PlaceholderEl } from 'Source/Constants';
 import SparkMD5 from 'spark-md5';
 
@@ -52,11 +52,14 @@ export function ParseENEX(RawENEXString: string): string {
     const Style: string | undefined = El.getAttribute('style');
     if ((Tag === "div") && (Style)) {
       let MatchArray: RegExpExecArray | null;
+      ENCustomPropertiesRegex.lastIndex = 0;
       while ((MatchArray = ENCustomPropertiesRegex.exec(Style)) !== null) {
         const [, PropertyName, PropertyValue] = MatchArray;
         if (KnownENElements.has(PropertyName)) {
-          // Hand over to custom handler, then push result to array.
-          // Continue the loop.
+          if (PropertyName == "--en-task-group") {
+            El.childNodes.forEach((Child) => { El.removeChild(Child) });
+            HTMLOutputArray.push(TasksHandler(Note) || '');
+          }
         }
         else if (!IgnoredENProps.has(PropertyName)) {
           // <div> with an unknown custom property.
