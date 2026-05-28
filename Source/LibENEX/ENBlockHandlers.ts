@@ -129,6 +129,12 @@ export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<s
   return HTMLOutput;
 }
 
+/**
+* Converts data from <task> nodes into styled HTML strings.
+*
+* @param {HTMLElement} Note Entire note content as DOM, including tasks, reminders, etc.
+* @returns {string} - Converted HTML string with task metadata.
+*/
 export function TasksHandler(Note: HTMLElement): string | null {
   // Get child elements from metadata block.
   let HTMLOutput: string = "";
