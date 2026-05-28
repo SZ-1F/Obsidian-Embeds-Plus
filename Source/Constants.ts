@@ -28,7 +28,7 @@ export function IsHtmlViewExtension(Extension: string): boolean {
 */
 
 // Define regular expression for matching Evernote's custom properties.
-export const ENCustomPropertiesRegex: RegExp = /(--en-[\w-]+)\s*:\s*([^;]+)/g;
+export const ENCustomPropertiesRegex: RegExp = /(--en-[\w-]+)(?:\s*:\s*([^;]+))?/g;
 
 // List of ignored Evernote metadata properties.
 export const IgnoredENProps: Set<string> = new Set([
@@ -51,7 +51,7 @@ export const KnownENElements: Set<string> = new Set([
   "--en-calendarBlock",
   "--en-codeblock",
   "--en-task-group",
-  "--en-tableofcontents",
+  //"--en-tableofcontents",
   "--en-todo",
   // Custom Evernote tags.
   "en-media"

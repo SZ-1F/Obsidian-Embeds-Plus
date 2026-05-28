@@ -84,13 +84,14 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
 */
 export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<string, string>): string {
   // Check if the element is an image.
+  let HTMLOutput: string = MediaPlaceholderEl;
   if (MediaEl.getAttribute("type") === "image/png") {
     const ElementHash: string = MediaEl.getAttribute("hash") || '';
-    let HTMLOutput: string = (ResourceLookupTable[ElementHash])
+    HTMLOutput = (ResourceLookupTable[ElementHash])
       ? `<img src="data:image/png;base64, ${ResourceLookupTable[ElementHash]}" alt="Embedded Image" />`
       : MediaPlaceholderEl;
   }
-  return MediaPlaceholderEl;
+  return HTMLOutput;
 }
 
 export function TasksHandler() {
