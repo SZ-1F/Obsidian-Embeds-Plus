@@ -29,6 +29,36 @@ export interface TaskMetadata {
 }
 
 /**
+* Converts date formats used in ENEX files to a human-readable format.
+*
+* @param {string} RawTimeString Raw date/time string.
+* @param {string} Timezone Desired timezone.
+* @returns {string} - Date & time as a readable string.
+*/
+const FormatENEXDate = (RawTimeString:string, Timezone="UTC") => {
+  const ISODate: string = RawTimeString.replace(
+    /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
+    "$1-$2-$3T$4:$5:$6Z"
+  );
+  const Parts: {[k:string]: string} = Object.fromEntries(
+    new Intl.DateTimeFormat("en-AU", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: Timezone,
+    })
+      .formatToParts(new Date(ISODate))
+      .filter(({ type }) => type !== "literal")
+      .map(({ type, value }) => [type, value])
+  );
+  return `${Parts.weekday}, ${Parts.day} ${Parts.month} ${Parts.year} @ ${Parts.hour}:${Parts.minute}${Parts.dayPeriod.toLowerCase()}`;
+};
+
+/**
 * Generates the HTML block that is injected above the note body, containing
 * metadata such as author, creation time, tags, etc.
 *
