@@ -35,7 +35,8 @@ export interface TaskMetadata {
 * @param {string} Timezone Desired timezone.
 * @returns {string} - Date & time as a readable string.
 */
-const FormatENEXDate = (RawTimeString:string, Timezone="UTC") => {
+const FormatENEXDate = (RawTimeString: string, Timezone = "UTC") => {
+  if (RawTimeString === 'Undated') return;
   const ISODate: string = RawTimeString.replace(
     /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
     "$1-$2-$3T$4:$5:$6Z"
@@ -75,8 +76,8 @@ export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
     <div class="en-properties-header">
       <div class="en-properties-metadata">
         <span class="en-meta-row en-meta-author">${NoteMetadata.Author || "-"}</span>
-        <span class="en-meta-row en-meta-created"><b>Created:</b> ${NoteMetadata.CreatedDate || "-"}</span>
-        <span class="en-meta-row en-meta-updated"><b>Updated:</b> ${NoteMetadata.UpdatedDate || "-"}</span>
+        <span class="en-meta-row en-meta-created"><b>Created:</b> ${FormatENEXDate(NoteMetadata.CreatedDate) || "-"}</span>
+        <span class="en-meta-row en-meta-updated"><b>Updated:</b> ${FormatENEXDate(NoteMetadata.UpdatedDate) || "-"}</span>
       </div>
       <div class="en-properties-tags">${HTMLTags || ""}</div>
     </div>`.replace(/\n\s*/g, "");
@@ -178,11 +179,9 @@ export function TasksHandler(Note: HTMLElement): string | null {
     TaskEl.querySelectorAll("reminder")
       .forEach((ReminderNode: HTMLElement) => {
         ReminderNodes.push(
-          ReminderNode
-            .querySelector("reminderdate")
-            ?.textContent || "No Date"
+          FormatENEXDate((ReminderNode.querySelector("reminderdate")?.textContent || 'Undated'))
         )
-    })
+      })
 
     // Extract the rest of the metadata.
     let TaskMetadata: TaskMetadata = {
@@ -190,7 +189,7 @@ export function TasksHandler(Note: HTMLElement): string | null {
       Status: ((TaskEl.querySelector("taskstatus")?.textContent) === "completed") ? 'completed' : 'open',
       Flagged: (TaskEl.querySelector("taskflag")?.textContent === "true") ? true : false,
       Recurrence: TaskEl.querySelector("recurrence")?.textContent,
-      DueDate: TaskEl.querySelector("duedate")?.textContent,
+      DueDate: FormatENEXDate(TaskEl.querySelector("duedate")?.textContent || 'Undated'),
       Description: undefined,
       Reminders: (ReminderNodes.length) ? ReminderNodes : undefined,
       ReminderTimezone: TaskEl.querySelector("timezone")?.textContent
