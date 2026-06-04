@@ -1,6 +1,6 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, NoteMetadata, GenerateNoteHeader, MediaHandler, TasksHandler } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, MediaHandler, TasksHandler } from 'Source/LibENEX/ENBlockHandlers';
 import { IgnoredENProps, KnownENElements, ENCustomPropertiesRegex, PlaceholderEl } from 'Source/Constants';
 import SparkMD5 from 'spark-md5';
 

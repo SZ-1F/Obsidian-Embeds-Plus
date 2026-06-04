@@ -526,7 +526,7 @@ export const ENCSS: string = `
 
 
   /* =============================================================================
-     11. INLINE TEXT FORMATTING
+     11. INLINE TEXT FORMATTING & ATTACHMENTS
      ============================================================================= */
 
   en-note code {
@@ -575,6 +575,9 @@ export const ENCSS: string = `
   en-note .R64m3.ZvszV { background-color: rgba(255, 153, 79, .45); }
   body.darkMode en-note .R64m3.ZvszV { background-color: hsla(25, 70%, 75%, .45); }
 
+  en-note > img {
+    max-width:100%;
+  }
 
   /* =============================================================================
      12. CODE BLOCKS

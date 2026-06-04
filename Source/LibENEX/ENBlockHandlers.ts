@@ -3,7 +3,7 @@
  */
 
 import { HTMLElement } from "node-html-parser";
-import { PlaceholderEl, MediaPlaceholderEl } from 'Source/Constants';
+import { MediaPlaceholderEl } from 'Source/Constants';
 
 // Interface for validating note metadata.
 export interface NoteMetadata {
@@ -35,7 +35,7 @@ export interface TaskMetadata {
 * @param {string} Timezone Desired timezone.
 * @returns {string} - Date & time as a readable string.
 */
-const FormatENEXDate = (RawTimeString: string, Timezone = "UTC") => {
+const FormatENEXDate = (RawTimeString: string, Timezone: string = "UTC") => {
   if (RawTimeString === 'Undated') return;
   const ISODate: string = RawTimeString.replace(
     /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
@@ -151,10 +151,11 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
 export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<string, string>): string {
   // Check if the element is an image.
   let HTMLOutput: string = MediaPlaceholderEl;
-  if (MediaEl.getAttribute("type") === "image/png") {
+  let MediaType: string | undefined;
+  if ((MediaType = MediaEl.getAttribute("type"))?.includes("image")) {
     const ElementHash: string = MediaEl.getAttribute("hash") || '';
     HTMLOutput = (ResourceLookupTable[ElementHash])
-      ? `<img src="data:image/png;base64, ${ResourceLookupTable[ElementHash]}" alt="Embedded Image" />`
+      ? `<img src="data:${MediaType};base64, ${ResourceLookupTable[ElementHash]}" alt="Embedded Image" />`
       : MediaPlaceholderEl;
   }
   return HTMLOutput;
@@ -179,7 +180,7 @@ export function TasksHandler(Note: HTMLElement): string | null {
     TaskEl.querySelectorAll("reminder")
       .forEach((ReminderNode: HTMLElement) => {
         ReminderNodes.push(
-          FormatENEXDate((ReminderNode.querySelector("reminderdate")?.textContent || 'Undated'))
+          FormatENEXDate((ReminderNode.querySelector("reminderdate")?.textContent) || 'Undated') || ''
         )
       })
 
