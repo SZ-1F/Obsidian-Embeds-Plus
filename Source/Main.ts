@@ -63,6 +63,7 @@ export default class HtmlViewerPlugin extends Plugin {
 	DebounceTimers: Map<string, number> = new Map();
 	LoggedRenderedEmbeds: Set<string> = new Set();
 	PersistentCache = new PersistentCache();
+	ActiveENEXRenderers: Set<HTMLEmbedRenderer> = new Set();
 
   private readonly LogPrefix = '[Embeds-Plus]:';
 
@@ -98,7 +99,12 @@ export default class HtmlViewerPlugin extends Plugin {
     this.UpdateThemeColor();
 
     this.registerEvent(this.app.workspace.on('css-change', () => {
+      const PreviousTheme = this.ThemeColor;
       this.UpdateThemeColor();
+
+      if (this.ThemeColor !== PreviousTheme) {
+        void this.RefreshENEXOnThemeChange();
+      }
     }));
 
 		this.registerEvent(
@@ -149,6 +155,14 @@ export default class HtmlViewerPlugin extends Plugin {
 
 	ResetEmbedRenderedLogged(FilePath: string): void {
 		this.LoggedRenderedEmbeds.delete(FilePath);
+	}
+
+	RegisterENEXRenderer(Renderer: HTMLEmbedRenderer): void {
+		this.ActiveENEXRenderers.add(Renderer);
+	}
+
+	UnregisterENEXRenderer(Renderer: HTMLEmbedRenderer): void {
+		this.ActiveENEXRenderers.delete(Renderer);
 	}
 
 	ResolveHtmlFile(FilePath: string, SourcePath: string): TFile | null {
@@ -522,6 +536,61 @@ export default class HtmlViewerPlugin extends Plugin {
 		void this.PersistentCache.DeletePath(FilePath);
 	}
 
+	/**
+	 * Invalidates the render cache for ENEX files and re-renders all visible ENEX content
+	 * with the matching theme. Called whenever the app switches between light and dark mode.
+	 */
+	private async RefreshENEXOnThemeChange(): Promise<void> {
+		// Get the paths of all currently-cached ENEX files.
+		const ENEXPaths = Array.from(this.Cache.keys()).filter(
+			(Path) => Path.toLowerCase().endsWith('.enex')
+		);
+
+		if (ENEXPaths.length === 0) {
+			return;
+		}
+
+		// Invalidate both memory and persistent caches; next load will force a re-parse.
+		for (const Path of ENEXPaths) {
+			this.InvalidateMemoryCache(Path);
+			this.InvalidatePersistentCache(Path);
+		}
+
+		const ReloadPromises = ENEXPaths.map((Path) => {
+			const File = this.app.vault.getFileByPath(Path);
+			if (!File) {
+				return Promise.resolve();
+			}
+
+			return this.LoadAndCacheHtml(File).catch((ErrorValue) => {
+				this.LogPluginError('refresh ENEX on theme change', ErrorValue, Path);
+			});
+		});
+
+		await Promise.all(ReloadPromises);
+
+		// Refresh all active Reading View embed renderers for ENEX files.
+		for (const Renderer of this.ActiveENEXRenderers) {
+			Renderer.Refresh();
+		}
+
+		// Reload any open dedicated tab views that are showing an ENEX file.
+		this.app.workspace.iterateAllLeaves((Leaf) => {
+			if (Leaf.view.getViewType() !== VIEW_TYPE_HTML) {
+				return;
+			}
+
+			const FileView = Leaf.view as HTMLFileView;
+			if (FileView.file?.extension?.toLowerCase() !== 'enex') {
+				return;
+			}
+
+			void FileView.onLoadFile(FileView.file).catch((ErrorValue) => {
+				this.LogPluginError('reload ENEX tab on theme change', ErrorValue, FileView.file?.path);
+			});
+		});
+	}
+
 	onunload() {
 		this.DebounceTimers.forEach((Timer) => activeWindow.clearTimeout(Timer));
 
@@ -537,5 +606,6 @@ export default class HtmlViewerPlugin extends Plugin {
 		this.PendingPersistentLoads.clear();
 		this.DebounceTimers.clear();
 		this.LoggedRenderedEmbeds.clear();
+		this.ActiveENEXRenderers.clear();
 	}
 }

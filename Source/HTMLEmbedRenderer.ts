@@ -34,6 +34,14 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 	}
 
 	onload(): void {
+		if (this.File.extension.toLowerCase() === 'enex') {
+			this.Plugin.RegisterENEXRenderer(this);
+		}
+
+		void this.LoadEmbed();
+	}
+
+	Refresh(): void {
 		void this.LoadEmbed();
 	}
 
@@ -382,6 +390,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		this.IsDisposed = true;
 		this.RenderToken++;
 		this.ClearIframeLoadTimeout();
+		this.Plugin.UnregisterENEXRenderer(this);
 	}
 
 	private ClearIframeLoadTimeout(RenderToken?: number): void {
