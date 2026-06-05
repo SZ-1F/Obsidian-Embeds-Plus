@@ -369,6 +369,10 @@ export const ENCSS: string = `
       background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSI+PHBhdGggZmlsbD0iIzRENjRGRiIgZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMy45NCAxLjY2N2EyLjI3MyAyLjI3MyAwIDAgMC0yLjI3MiAyLjI3MnYxMi4xMjJhMi4yNzMgMi4yNzMgMCAwIDAgMi4yNzMgMi4yNzJoMTIuMTJhMi4yNzMgMi4yNzMgMCAwIDAgMi4yNzQtMi4yNzJWMy45MzlhMi4yNzMgMi4yNzMgMCAwIDAtMi4yNzMtMi4yNzJIMy45NFptMTEuMDA1IDQuNjE2YS42ODIuNjgyIDAgMCAwLS45NjIuMDdsLTUuMDE1IDUuNzkzLTIuMDg1LTIuNDFhLjY4Mi42ODIgMCAxIDAtMS4wMzIuODkzbDIuNjAyIDMuMDA1YS42ODIuNjgyIDAgMCAwIDEuMDMgMGw1LjUzLTYuMzlhLjY4Mi42ODIgMCAwIDAtLjA2OC0uOTYxWiIgY2xpcC1ydWxlPSJldmVub2RkIi8+PC9zdmc+");
   }
 
+  body.darkMode en-note ul[style*="--en-todo:true"] > li[style*="--en-checked:true"]::before {
+      background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSI+PHBhdGggZmlsbD0iIzRENjRGRiIgZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMy45NCAxLjY2N2EyLjI3MyAyLjI3MyAwIDAgMC0yLjI3MiAyLjI3MnYxMi4xMjJhMi4yNzMgMi4yNzMgMCAwIDAgMi4yNzMgMi4yNzJoMTIuMTJhMi4yNzMgMi4yNzMgMCAwIDAgMi4yNzQtMi4yNzJWMy45MzlhMi4yNzMgMi4yNzMgMCAwIDAtMi4yNzMtMi4yNzJIMy45NFptMTEuMDA1IDQuNjE2YS42ODIuNjgyIDAgMCAwLS45NjIuMDdsLTUuMDE1IDUuNzkzLTIuMDg1LTIuNDFhLjY4Mi42ODIgMCAxIDAtMS4wMzIuODkzbDIuNjAyIDMuMDA1YS42ODIuNjgyIDAgMCAwIDEuMDMgMGw1LjUzLTYuMzlhLjY4Mi42ODIgMCAwIDAtLjA2OC0uOTYxWiIgY2xpcC1ydWxlPSJldmVub2RkIi8+PC9zdmc+");
+  }
+
   en-note ul[style*="--en-todo:true"] > li[style*="--en-checked:true"] > div {
       opacity: .55;
   }
