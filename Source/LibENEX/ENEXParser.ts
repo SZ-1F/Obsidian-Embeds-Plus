@@ -80,7 +80,7 @@ export function ParseENEX(RawENEXString: string, ThemeColor: string = ''): strin
   }
   // Add HTML boilerplate to final output.
   HTMLOutputArray.unshift(ParseNoteMetadata(Note));
-  HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><body class="${ThemeColor}"><en-note>`);
+  HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><meta charset="utf-8"><body class="${ThemeColor}"><en-note>`);
   HTMLOutputArray.push('</en-note></body></html>');
 
   return (HTMLOutputArray.join(""));
