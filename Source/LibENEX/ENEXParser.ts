@@ -11,10 +11,11 @@ import SparkMD5 from 'spark-md5';
 * invoking a custom handler where needed.
 *
 * @param {string} RawENEXString The full contents of an ENEX file (single note) as a string.
+* @param {string} ThemeColor Current theme being used (dark/light mode). Either 'darkMode', or ''.
 * @throws {Error} - Unable to parse ENEX content (not valid XML, etc.).
 * @returns {string} - Converted HTML string containing parsed elements from ENEX file.
 */
-export function ParseENEX(RawENEXString: string): string {
+export function ParseENEX(RawENEXString: string, ThemeColor: string = ''): string {
   // Parse the raw ENEX string, convert it to DOM. Extract only the first note & its main contents.
   const ENEXDOM = parse(RawENEXString) || null;
   const Note: HTMLElement | null = (ENEXDOM.getElementsByTagName("note"))[0] || null;
@@ -79,7 +80,7 @@ export function ParseENEX(RawENEXString: string): string {
   }
   // Add HTML boilerplate to final output.
   HTMLOutputArray.unshift(ParseNoteMetadata(Note));
-  HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><body class=""><en-note>`);
+  HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><body class="${ThemeColor}"><en-note>`);
   HTMLOutputArray.push('</en-note></body></html>');
 
   return (HTMLOutputArray.join(""));

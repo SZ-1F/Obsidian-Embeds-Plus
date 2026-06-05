@@ -124,7 +124,6 @@ export const ENCSS: string = `
       color: #333;
       font-family: var(--default-font-family);
       text-rendering: optimizeLegibility;
-      padding: 20px;
       border-radius: 20px;
   }
 
@@ -150,7 +149,8 @@ export const ENCSS: string = `
       line-height: 1.45;
       outline: none;
       overflow-wrap: break-word;
-      padding: 0 var(--spacing-6);
+      padding: var(--spacing-4);
+      border-radius: 20px;
       position: relative;
       white-space: break-spaces;
       word-wrap: break-word;
@@ -781,6 +781,42 @@ export const ENCSS: string = `
       border-radius: var(--radius-xs);
       padding: var(--spacing-0-25) var(--spacing-1-25);
       font-size: 12px;
+  }
+
+  .badge::before {
+      content: "";
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23cdcccb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      vertical-align: middle;
+  }
+
+  body.darkMode .badge::before {
+      content: "";
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234e4d4c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      vertical-align: middle;
+  }
+
+  .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-0-75);
+      outline: 1px solid var(--color-surface-stroke-tertiary-enabled);
+      color: inherit;
+      border-radius: var(--radius-xs);
+      padding: var(--spacing-0-25) var(--spacing-1-25);
+      font-size: 12px;
+      font-weight: bold;
   }
 
   /* =============================================================================

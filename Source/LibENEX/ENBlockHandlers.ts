@@ -72,6 +72,7 @@ export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
     HTMLTags += `<span class="tag">${Tag}</span>`;
   })
   let Header: string = `
+    <div><span class="badge">READ ONLY</span></div>
     <h1 class="en-note-title">${NoteMetadata.NoteTitle}</h1>
     <div class="en-properties-header">
       <div class="en-properties-metadata">
