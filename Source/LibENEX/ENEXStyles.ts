@@ -926,4 +926,53 @@ export const ENCSS: string = `
     --en-task-icon-flag: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><path fill-rule='evenodd' clip-rule='evenodd' d='M6.75 4.91666C6.19772 4.91666 5.75 5.36437 5.75 5.91666V6.37499V14.0833V18.875C5.75 19.2202 6.02982 19.5 6.375 19.5C6.72018 19.5 7 19.2202 7 18.875V14.0833H17.6148C18.32 14.0833 18.8036 13.3731 18.5453 12.7169L17.2942 9.53979C17.2707 9.48029 17.271 9.41407 17.2949 9.35475L18.5297 6.29042C18.7946 5.63322 18.3108 4.91666 17.6022 4.91666H6.75Z' fill='%23e54e40'/></svg>");
     --en-task-icon-reminder: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><path d='M9.81583 18.6646C10.0605 19.6221 10.9456 20.3313 11.9999 20.3313C13.0542 20.3313 13.9393 19.6221 14.184 18.6646H9.81583Z' fill='%234d64ff'/><path d='M10.5714 5.50999C10.5714 4.72101 11.211 4.08142 12 4.08142C12.7889 4.08142 13.4285 4.72101 13.4285 5.50999C13.4285 5.57498 13.4242 5.63895 13.4158 5.70164C15.335 6.19344 16.7537 7.93466 16.7537 10.0072L16.7537 10.0172V12.2034C16.7552 12.4802 16.8279 12.7521 16.9649 12.9927L18.4756 15.6466C18.5067 15.6933 18.5342 15.7421 18.558 15.7925C18.5863 15.8524 18.6092 15.9146 18.6266 15.9784C18.653 16.0754 18.6666 16.1759 18.6666 16.2775C18.6666 16.9055 18.1575 17.4147 17.5294 17.4147H6.47045C5.98346 17.4147 5.56797 17.1085 5.4059 16.6782C5.35894 16.5536 5.33325 16.4185 5.33325 16.2774C5.33325 16.0529 5.39971 15.8334 5.52424 15.6466L7.03494 12.9927C7.17336 12.7495 7.24615 12.4745 7.24615 12.1947L7.24618 10.0072C7.24618 7.93463 8.66487 6.19339 10.5841 5.70162C10.5757 5.63894 10.5714 5.57497 10.5714 5.50999Z' fill='%234d64ff'/></svg>");
   }
+
+  /* =============================================================================
+     17. CALLOUTS
+     ============================================================================= */
+
+  .en-callout {
+    display: flex;
+    position: relative;
+    margin: var(--spacing-1-5) 0;
+    min-width: 100px;
+    padding: var(--spacing-3) var(--spacing-1-5) var(--spacing-3) var(--spacing-1-5);
+    border-radius: var(--radius-xs);
+    background-color: var(--en-callout-bg, var(--color-surface-fill-secondary-enabled));
+  }
+
+  .en-callout-plain  { --en-callout-bg: var(--color-surface-fill-secondary-enabled); }
+  .en-callout-yellow { --en-callout-bg: rgba(255, 219, 39, .45); }
+  .en-callout-pink   { --en-callout-bg: rgba(253, 117, 151, .45); }
+  .en-callout-green  { --en-callout-bg: rgba(95, 237, 153, .45); }
+  .en-callout-blue   { --en-callout-bg: rgba(73, 213, 231, .45); }
+  .en-callout-purple { --en-callout-bg: rgba(139, 137, 255, .45); }
+  .en-callout-orange { --en-callout-bg: rgba(255, 153, 79, .45); }
+
+  body.darkMode .en-callout-plain  { --en-callout-bg: var(--color-surface-fill-secondary-enabled); }
+  body.darkMode .en-callout-yellow { --en-callout-bg: hsla(50, 74%, 72%, .45); }
+  body.darkMode .en-callout-pink   { --en-callout-bg: rgba(234, 167, 182, .45); }
+  body.darkMode .en-callout-green  { --en-callout-bg: rgba(156, 227, 185, .45); }
+  body.darkMode .en-callout-blue   { --en-callout-bg: rgba(145, 214, 222, .45); }
+  body.darkMode .en-callout-purple { --en-callout-bg: rgba(178, 176, 236, .45); }
+  body.darkMode .en-callout-orange { --en-callout-bg: hsla(25, 70%, 75%, .45); }
+
+  .en-callout-emoji {
+    flex: 0 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-right: var(--spacing-1);
+    font-size: 20px;
+    line-height: 20px;
+    padding: var(--spacing-2-5) var(--spacing-1) var(--spacing-2-5) var(--spacing-3);
+  }
+
+  .en-callout-content {
+    flex: 1 1 0%;
+    min-width: 0;
+    padding: var(--spacing-1-5) var(--spacing-2) var(--spacing-1-5) var(--spacing-2);
+  }
 `;

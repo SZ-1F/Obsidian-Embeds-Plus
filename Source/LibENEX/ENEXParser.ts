@@ -1,6 +1,6 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, MediaHandler, TasksHandler } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, MediaHandler, TasksHandler, CalloutHandler } from 'Source/LibENEX/ENBlockHandlers';
 import { IgnoredENProps, KnownENElements, ENCustomPropertiesRegex, PlaceholderEl } from 'Source/Constants';
 import SparkMD5 from 'spark-md5';
 
@@ -56,9 +56,14 @@ export function ParseENEX(RawENEXString: string): string {
       while ((MatchArray = ENCustomPropertiesRegex.exec(Style)) !== null) {
         const [, PropertyName, PropertyValue] = MatchArray;
         if (KnownENElements.has(PropertyName)) {
-          if (PropertyName == "--en-task-group") {
-            El.childNodes.forEach((Child) => { El.removeChild(Child) });
-            HTMLOutputArray.push(TasksHandler(Note) || '');
+          switch (PropertyName) {
+            case ("--en-task-group"):
+              El.childNodes.forEach((Child) => { El.removeChild(Child) });
+              HTMLOutputArray.push(TasksHandler(Note) || '');
+              continue ElementLoop;
+            case ("--en-callout"):
+              HTMLOutputArray.push(CalloutHandler(El));
+              continue ElementLoop;
           }
         }
         else if (!IgnoredENProps.has(PropertyName)) {

@@ -3,7 +3,7 @@
  */
 
 import { HTMLElement } from "node-html-parser";
-import { MediaPlaceholderEl } from 'Source/Constants';
+import { MediaPlaceholderEl, ENCustomPropertiesRegex } from 'Source/Constants';
 
 // Interface for validating note metadata.
 export interface NoteMetadata {
@@ -108,6 +108,25 @@ export const GenerateTaskEl = (TaskMetadata: TaskMetadata): string => {
 }
 
 /**
+* Generates a HTML block for callout elements that is injected into DOM for rendering.
+*
+* @param {Map<string, string>} Properties Callout properties, i.e, color, emoji, and content.
+* @param {string} Contents Inner HTML content from the callout block.
+* @returns {string} - HTML string, complete, styles task block.
+*/
+export const GenerateCalloutEl = (Properties: Map<string, string>, Contents: string): string => {
+  let CalloutEl: string = `
+    <div class="en-callout en-callout-${ Properties.get('--en-color') || 'plain' }">
+      <div class="en-callout-emoji">${ Properties.get('--en-emoji') || '?' }</div>
+      <div class="en-callout-content">
+        ${Contents}
+      </div>
+    </div>
+  `.replace(/\n\s*/g, "");
+  return CalloutEl;
+}
+
+/**
 * Extracts note metadata from ENEX files.
 * Parses to GenerateNoteHeader() to get the final HTML output string.
 *
@@ -195,8 +214,28 @@ export function TasksHandler(Note: HTMLElement): string | null {
       Reminders: (ReminderNodes.length) ? ReminderNodes : undefined,
       ReminderTimezone: TaskEl.querySelector("timezone")?.textContent
     }
-    console.debug(TaskMetadata)
     HTMLOutput += GenerateTaskEl(TaskMetadata);
   })
   return HTMLOutput;
+}
+
+/**
+* Extracts properties and inner content of Evernote callout elements,
+* passes to GenerateCalloutEl() to create final HTML string.
+*
+* @param {HTMLElement} CalloutBlock Entire callout block as an HTMLElement.
+* @returns {string} - HTML string, complete, styles task block.
+*/
+export function CalloutHandler(CalloutBlock: HTMLElement): string {
+  let CalloutContents: string = '';
+  (CalloutBlock.querySelectorAll("*")).forEach((El) => { CalloutContents += El.toString() });
+  const Properties = new Map<string, string>();
+  // Extract all EN custom style properties.
+  const Style: string | undefined = CalloutBlock.getAttribute('style');
+  if (Style) {
+    for (const [, Name, Value = ""] of Style.matchAll(ENCustomPropertiesRegex)) {
+      Properties.set(Name, Value);
+    }
+  }
+  return GenerateCalloutEl(Properties, CalloutContents);
 }

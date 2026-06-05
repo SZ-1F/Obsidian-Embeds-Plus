@@ -42,6 +42,8 @@ export const IgnoredENProps: Set<string> = new Set([
   "--en-toggle",
   "--en-expanded",
   "--en-requiredFeatures",
+  "--en-emoji",
+  "--en-color"
 ]);
 
 // List of known Evernote custom properties. Elements covered by this list need custom handling.
@@ -51,6 +53,7 @@ export const KnownENElements: Set<string> = new Set([
   "--en-calendarBlock",
   "--en-codeblock",
   "--en-task-group",
+  "--en-callout",
   //"--en-tableofcontents",
   "--en-todo",
   // Custom Evernote tags.
