@@ -362,7 +362,7 @@ export default class HtmlViewerPlugin extends Plugin {
 
     if (Ext === 'enex') {
       StartStage(File.path, 'parseENEX');
-      const ParsedHtml = ParseENEX(Content, this.ThemeColor);
+      const ParsedHtml = await ParseENEX(Content, this.ThemeColor);
       RecordStage(File.path, 'parseENEX', EndStage(File.path, 'parseENEX'));
       return ParsedHtml;
     }

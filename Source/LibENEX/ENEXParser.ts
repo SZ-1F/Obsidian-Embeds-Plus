@@ -1,6 +1,6 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, MediaHandler, TasksHandler, CalloutHandler, WebClipHandler } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, MediaHandler, TasksHandler, CalloutHandler, WebClipHandler, MermaidHandler } from 'Source/LibENEX/ENBlockHandlers';
 import { IgnoredENProps, KnownENElements, ENCustomPropertiesRegex, PlaceholderEl } from 'Source/Constants';
 import SparkMD5 from 'spark-md5';
 
@@ -13,9 +13,9 @@ import SparkMD5 from 'spark-md5';
 * @param {string} RawENEXString The full contents of an ENEX file (single note) as a string.
 * @param {string} ThemeColor Current theme being used (dark/light mode). Either 'darkMode', or ''.
 * @throws {Error} - Unable to parse ENEX content (not valid XML, etc.).
-* @returns {string} - Converted HTML string containing parsed elements from ENEX file.
+* @returns {Promise<string>} - Converted HTML string containing parsed elements from ENEX file.
 */
-export function ParseENEX(RawENEXString: string, ThemeColor: string = ''): string {
+export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''): Promise<string> {
   // Parse the raw ENEX string, convert it to DOM. Extract only the first note & its main contents.
   const ENEXDOM = parse(RawENEXString) || null;
   const Note: HTMLElement | null = (ENEXDOM.getElementsByTagName("note"))[0] || null;
@@ -67,6 +67,9 @@ export function ParseENEX(RawENEXString: string, ThemeColor: string = ''): strin
               continue ElementLoop;
             case ("--en-clipped-content"):
               HTMLOutputArray.push(WebClipHandler(El, ResourceLookupTable));
+              continue ElementLoop;
+            case ("--en-mermaidblock"):
+              HTMLOutputArray.push(await MermaidHandler(El));
               continue ElementLoop;
           }
         }

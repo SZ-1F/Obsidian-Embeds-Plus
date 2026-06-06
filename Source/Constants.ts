@@ -46,6 +46,8 @@ export const IgnoredENProps: Set<string> = new Set([
   "--en-color",
   "--en-clipped-source-url",
   "--en-clipped-source-title",
+  "--en-displayMode",
+  "--en-isEditMode",
 ]);
 
 // List of known Evernote custom properties. Elements covered by this list need custom handling.
@@ -57,7 +59,7 @@ export const KnownENElements: Set<string> = new Set([
   "--en-task-group",
   "--en-callout",
   "--en-clipped-content",
-  //"--en-tableofcontents",
+  "--en-mermaidblock",
   "--en-todo",
   // Custom Evernote tags.
   "en-media"
