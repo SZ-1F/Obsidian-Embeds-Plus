@@ -4,6 +4,7 @@
 
 import { HTMLElement } from "node-html-parser";
 import { MediaPlaceholderEl, ENCustomPropertiesRegex } from 'Source/Constants';
+import { EmbedIconSVGMarkup, OpenIconSVGMarkup } from 'Source/EmbedIcons';
 
 // Interface for validating note metadata.
 export interface NoteMetadata {
@@ -27,6 +28,129 @@ export interface TaskMetadata {
   Reminders?: Array<string>;
   ReminderTimezone?: string;
 }
+
+/**
+* Escapes HTML-special characters from HTML strings.
+*
+* @param {string} RawValue Raw attribute value before escaping.
+* @returns {string} - Escaped attribute-safe string.
+*/
+const EscapeHTMLAttribute = (RawValue: string): string => {
+  return RawValue
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
+/**
+* Extracts EN custom CSS properties from an inline style string.
+*
+* @param {string | undefined} Style Inline style string from an EN block.
+* @returns {Map<string, string>} - Map of EN custom property names and values.
+*/
+const ExtractENProperties = (Style: string | undefined): Map<string, string> => {
+  const Properties = new Map<string, string>();
+  if (!Style) {
+    return Properties;
+  }
+
+  for (const [, Name, Value = ""] of Style.matchAll(ENCustomPropertiesRegex)) {
+    Properties.set(Name, Value);
+  }
+
+  return Properties;
+};
+
+/**
+* Builds a string of safe image attributes preserved from an `en-media` node.
+*
+* @param {HTMLElement} MediaEl Original `en-media` element.
+* @returns {string} - Escaped attribute string for HTML image output.
+*/
+const BuildMediaAttributes = (MediaEl: HTMLElement): string => {
+  const AttributesToPreserve = ['style', 'width', 'height', 'class', 'alt', 'title'];
+  let AttributeString = '';
+  for (const AttributeName of AttributesToPreserve) {
+    const AttributeValue = MediaEl.getAttribute(AttributeName);
+    if (!AttributeValue) {
+      continue;
+    }
+
+    AttributeString += ` ${AttributeName}="${EscapeHTMLAttribute(AttributeValue)}"`;
+  }
+
+  return AttributeString;
+};
+
+/**
+* Normalises inline height declarations that force clipped pages to overflow.
+*
+* @param {HTMLElement} Element Element whose inline styles are being normalised.
+* @returns {void}
+*/
+const NormaliseHeightStyle = (Element: HTMLElement): void => {
+  const StyleValue = Element.getAttribute('style');
+  if (!StyleValue) {
+    return;
+  }
+
+  const Declarations = StyleValue
+    .split(';')
+    .map((Declaration) => Declaration.trim())
+    .filter((Declaration) => Declaration.length > 0);
+
+  const FilteredDeclarations = Declarations.filter((Declaration) => {
+    const [PropertyRaw, ValueRaw = ''] = Declaration.split(':', 2);
+    const PropertyName = PropertyRaw.trim().toLowerCase();
+    const PropertyValue = ValueRaw.trim().toLowerCase();
+
+    if (PropertyName === 'min-height') {
+      return false;
+    }
+
+    if (
+      PropertyName === 'height' &&
+      (PropertyValue === '100%' || PropertyValue.endsWith('vh'))
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (FilteredDeclarations.length === Declarations.length) {
+    return;
+  }
+
+  if (FilteredDeclarations.length === 0) {
+    Element.removeAttribute('style');
+    return;
+  }
+
+  Element.setAttribute('style', `${FilteredDeclarations.join('; ')};`);
+};
+
+/**
+* Prepares clipped HTML so it renders consistently inside the web clip frame.
+*
+* @param {HTMLElement} ClipBlock Root clipped content block.
+* @param {Record<string, string>} ResourceLookupTable Resource lookup table keyed by media hash.
+* @returns {void}
+*/
+const PrepareWebClipContent = (
+  ClipBlock: HTMLElement,
+  ResourceLookupTable: Record<string, string>
+): void => {
+  ClipBlock.querySelectorAll('en-media').forEach((MediaEl) => {
+    const ParsedMedia = MediaHandler(MediaEl, ResourceLookupTable);
+    MediaEl.replaceWith(ParsedMedia);
+  });
+
+  ClipBlock.querySelectorAll('[style]').forEach((StyledEl) => {
+    NormaliseHeightStyle(StyledEl);
+  });
+};
 
 /**
 * Converts date formats used in ENEX files to a human-readable format.
@@ -128,6 +252,44 @@ export const GenerateCalloutEl = (Properties: Map<string, string>, Contents: str
 }
 
 /**
+* Converts EN web clip blocks into a framed HTML container for rendering.
+*
+* @param {HTMLElement} ClipBlock Web clip block from parsed ENEX markup.
+* @param {Record<string, string>} ResourceLookupTable Resource lookup table keyed by media hash.
+* @returns {string} - Converted HTML string for the web clip block.
+*/
+export function WebClipHandler(ClipBlock: HTMLElement, ResourceLookupTable: Record<string, string>): string {
+  const Properties = ExtractENProperties(ClipBlock.getAttribute('style'));
+  const SourceURL = (Properties.get('--en-clipped-source-url') || '').trim();
+  const ClipType = ((Properties.get('--en-clipped-content') || '').trim()) || 'unknown';
+
+  PrepareWebClipContent(ClipBlock, ResourceLookupTable);
+
+  let ClipContents = '';
+  ClipBlock.childNodes.forEach((Node) => {
+    ClipContents += Node.toString();
+  });
+
+  const OpenSourceButton = SourceURL
+    ? `<a class="en-web-clip-button html-embed-button html-embed-button-text" href="${EscapeHTMLAttribute(SourceURL)}" target="_blank" rel="noopener noreferrer"><span class="html-embed-button-icon">${OpenIconSVGMarkup}</span><span class="html-embed-button-label">Open Source URL</span></a>`
+    : '';
+  const Header = `<div class="en-web-clip-header html-embed-header"><div class="en-web-clip-header-left html-embed-header-left"><div class="html-embed-icon">${EmbedIconSVGMarkup}</div><div class="html-embed-filename">Web Clip</div></div><div class="en-web-clip-header-right html-embed-header-right">${OpenSourceButton}</div></div>`;
+
+  return `
+    <div class="en-web-clip" data-clip-type="${EscapeHTMLAttribute(ClipType)}">
+      <div class="en-web-clip-shell markdown-embed">
+        ${Header}
+        <div class="en-web-clip-body markdown-embed-content">
+          <div class="en-web-clip-frame html-embed-iframe-container">
+            <div class="en-web-clip-content">${ClipContents}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `.replace(/\n\s*/g, "");
+}
+
+/**
 * Extracts note metadata from ENEX files.
 * Parses to GenerateNoteHeader() to get the final HTML output string.
 *
@@ -174,8 +336,9 @@ export function MediaHandler(MediaEl: HTMLElement, ResourceLookupTable: Record<s
   let MediaType: string | undefined;
   if ((MediaType = MediaEl.getAttribute("type"))?.includes("image")) {
     const ElementHash: string = MediaEl.getAttribute("hash") || '';
+    const AttributeString = BuildMediaAttributes(MediaEl);
     HTMLOutput = (ResourceLookupTable[ElementHash])
-      ? `<img src="data:${MediaType};base64, ${ResourceLookupTable[ElementHash]}" alt="Embedded Image" />`
+      ? `<img src="data:${MediaType};base64, ${ResourceLookupTable[ElementHash]}"${AttributeString || ' alt="Embedded Image"'} />`
       : MediaPlaceholderEl;
   }
   return HTMLOutput;
@@ -230,13 +393,6 @@ export function TasksHandler(Note: HTMLElement): string | null {
 export function CalloutHandler(CalloutBlock: HTMLElement): string {
   let CalloutContents: string = '';
   (CalloutBlock.querySelectorAll("*")).forEach((El) => { CalloutContents += El.toString() });
-  const Properties = new Map<string, string>();
-  // Extract all EN custom style properties.
-  const Style: string | undefined = CalloutBlock.getAttribute('style');
-  if (Style) {
-    for (const [, Name, Value = ""] of Style.matchAll(ENCustomPropertiesRegex)) {
-      Properties.set(Name, Value);
-    }
-  }
+  const Properties = ExtractENProperties(CalloutBlock.getAttribute('style'));
   return GenerateCalloutEl(Properties, CalloutContents);
 }

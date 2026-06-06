@@ -1015,4 +1015,168 @@ export const ENCSS: string = `
     min-width: 0;
     padding: var(--spacing-1-5) var(--spacing-2) var(--spacing-1-5) var(--spacing-2);
   }
+
+  /* =============================================================================
+     18. WEB CLIPS
+     ============================================================================= */
+
+  .en-web-clip {
+    margin: 1em 0;
+    max-width: 80%;
+  }
+
+  .en-web-clip-shell {
+    position: relative;
+    border: 1px solid var(--color-surface-fill-secondary-enabled);
+    border-radius: 8px;
+    background-color: var(--color-surface-fill-secondary-enabled);
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  .en-web-clip .html-embed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--background-modifier-border);
+    min-height: 40px;
+    background-color: var(--background-primary-alt);
+  }
+
+  .en-web-clip .html-embed-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .en-web-clip .html-embed-header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .en-web-clip .html-embed-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+    opacity: 0.7;
+    color: var(--text-muted);
+    background: transparent;
+    text-decoration: none;
+  }
+
+  .en-web-clip .html-embed-button:hover {
+    background-color: var(--background-modifier-hover);
+    opacity: 1;
+    color: var(--text-normal);
+    text-decoration: none;
+  }
+
+  .en-web-clip .html-embed-button:active {
+    background-color: var(--background-modifier-active-hover);
+  }
+
+  .en-web-clip .html-embed-button svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .en-web-clip .html-embed-button-text {
+    width: auto;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 10px;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: var(--font-interface);
+    white-space: nowrap;
+  }
+
+  .en-web-clip .html-embed-button-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .en-web-clip .html-embed-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-accent);
+    opacity: 0.9;
+  }
+
+  .en-web-clip .html-embed-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .en-web-clip .html-embed-filename {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-normal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-interface);
+  }
+
+  .en-web-clip .html-embed-button-label {
+    line-height: 1;
+  }
+
+  .en-web-clip-button {
+    color: var(--text-normal);
+    text-decoration: none;
+  }
+
+  .en-web-clip-button:hover {
+    text-decoration: none;
+  }
+
+  .en-web-clip-body {
+    padding: 0;
+    margin: 0;
+  }
+
+  .en-web-clip-frame {
+    max-height: 842px;
+    overflow: auto;
+    background-color: white;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+  }
+
+  .theme-dark .en-web-clip-frame {
+    background-color: var(--background-primary);
+  }
+
+  .en-web-clip-content {
+    min-width: 100%;
+    white-space: normal;
+    word-break: normal;
+  }
+
+  @media (max-width: 768px) {
+    .en-web-clip-frame {
+      max-height: 600px;
+    }
+  }
 `;

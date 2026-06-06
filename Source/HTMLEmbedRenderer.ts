@@ -11,6 +11,10 @@ import {
 	RecordStage,
 	LogPerformanceSummary,
 } from './Performance';
+import {
+	CreateEmbedIconSVGElement,
+	CreateOpenIconSVGElement,
+} from './EmbedIcons';
 
 const NativeLivePreviewEmbedClass = 'html-embed-native-live-preview';
 
@@ -108,7 +112,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		const HeaderLeft = Header.createDiv({ cls: 'html-embed-header-left' });
 
 		const IconElement = HeaderLeft.createDiv({ cls: 'html-embed-icon' });
-		IconElement.appendChild(this.CreateEmbedIconSvg());
+		IconElement.appendChild(CreateEmbedIconSVGElement(document));
 
 		const Filename = HeaderLeft.createDiv({ cls: 'html-embed-filename' });
 		Filename.textContent = this.File.basename;
@@ -132,7 +136,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		const HeaderLeft = Header.createDiv({ cls: 'html-embed-header-left' });
 
 		const IconElement = HeaderLeft.createDiv({ cls: 'html-embed-icon' });
-		IconElement.appendChild(this.CreateEmbedIconSvg());
+		IconElement.appendChild(CreateEmbedIconSVGElement(document));
 
 		const Filename = HeaderLeft.createDiv({ cls: 'html-embed-filename' });
 		Filename.textContent = this.File.basename;
@@ -177,7 +181,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		});
 
 		const IconContainer = Button.createSpan({ cls: 'html-embed-button-icon' });
-		IconContainer.appendChild(this.CreateOpenIconSvg());
+		IconContainer.appendChild(CreateOpenIconSVGElement(document));
 		Button.createSpan({ cls: 'html-embed-button-label', text: Label });
 
 		Button.addEventListener('click', (Event: MouseEvent) => {
@@ -193,56 +197,6 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 			.catch((ErrorValue: unknown) => {
 				this.Plugin.LogPluginError('open embedded file in new tab', ErrorValue, this.File.path);
 			});
-	}
-
-	private CreateEmbedIconSvg(): SVGSVGElement {
-		const SvgElement = this.CreateSvgElement('svg', {
-			xmlns: 'http://www.w3.org/2000/svg',
-			width: '16',
-			height: '16',
-			viewBox: '0 0 24 24',
-			fill: 'none',
-			stroke: 'currentColor',
-			'stroke-width': '2',
-			'stroke-linecap': 'round',
-			'stroke-linejoin': 'round',
-		});
-
-		SvgElement.appendChild(this.CreateSvgElement('polyline', { points: '16 18 22 12 16 6' }));
-		SvgElement.appendChild(this.CreateSvgElement('polyline', { points: '8 6 2 12 8 18' }));
-
-		return SvgElement as SVGSVGElement;
-	}
-
-	private CreateOpenIconSvg(): SVGSVGElement {
-		const SvgElement = this.CreateSvgElement('svg', {
-			xmlns: 'http://www.w3.org/2000/svg',
-			width: '14',
-			height: '14',
-			viewBox: '0 0 24 24',
-			fill: 'none',
-			stroke: 'currentColor',
-			'stroke-width': '2',
-			'stroke-linecap': 'round',
-			'stroke-linejoin': 'round',
-		});
-
-		SvgElement.appendChild(
-			this.CreateSvgElement('path', { d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' })
-		);
-		SvgElement.appendChild(this.CreateSvgElement('polyline', { points: '15 3 21 3 21 9' }));
-		SvgElement.appendChild(this.CreateSvgElement('line', { x1: '10', y1: '14', x2: '21', y2: '3' }));
-
-		return SvgElement as SVGSVGElement;
-	}
-
-	private CreateSvgElement(TagName: string, Attributes: Record<string, string>): SVGElement {
-		const SvgElement = activeDocument.createElementNS('http://www.w3.org/2000/svg', TagName);
-		for (const [AttributeName, AttributeValue] of Object.entries(Attributes)) {
-			SvgElement.setAttribute(AttributeName, AttributeValue);
-		}
-
-		return SvgElement;
 	}
 
 	private RenderIframeAsync(

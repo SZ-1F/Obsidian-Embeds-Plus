@@ -1,6 +1,6 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, MediaHandler, TasksHandler, CalloutHandler } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, MediaHandler, TasksHandler, CalloutHandler, WebClipHandler } from 'Source/LibENEX/ENBlockHandlers';
 import { IgnoredENProps, KnownENElements, ENCustomPropertiesRegex, PlaceholderEl } from 'Source/Constants';
 import SparkMD5 from 'spark-md5';
 
@@ -64,6 +64,9 @@ export function ParseENEX(RawENEXString: string, ThemeColor: string = ''): strin
               continue ElementLoop;
             case ("--en-callout"):
               HTMLOutputArray.push(CalloutHandler(El));
+              continue ElementLoop;
+            case ("--en-clipped-content"):
+              HTMLOutputArray.push(WebClipHandler(El, ResourceLookupTable));
               continue ElementLoop;
           }
         }
