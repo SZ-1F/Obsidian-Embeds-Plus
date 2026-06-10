@@ -60,6 +60,7 @@ export const KnownENElements: Set<string> = new Set([
   "--en-callout",
   "--en-clipped-content",
   "--en-mermaidblock",
+  "--en-formulablock",
   "--en-todo",
   // Custom Evernote tags.
   "en-media"

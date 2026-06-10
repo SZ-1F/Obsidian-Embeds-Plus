@@ -1,6 +1,6 @@
 import { HTMLElement, parse } from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, MediaHandler, TasksHandler, CalloutHandler, WebClipHandler, MermaidHandler } from 'Source/LibENEX/ENBlockHandlers';
+import { ParseNoteMetadata, MediaHandler, TasksHandler, CalloutHandler, WebClipHandler, MermaidHandler, TeXHandler } from 'Source/LibENEX/ENBlockHandlers';
 import { IgnoredENProps, KnownENElements, ENCustomPropertiesRegex, PlaceholderEl } from 'Source/Constants';
 import SparkMD5 from 'spark-md5';
 
@@ -70,6 +70,9 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
               continue ElementLoop;
             case ("--en-mermaidblock"):
               HTMLOutputArray.push(await MermaidHandler(El));
+              continue ElementLoop;
+            case ("--en-formulablock"):
+              HTMLOutputArray.push(await TeXHandler(El));
               continue ElementLoop;
           }
         }

@@ -5,6 +5,7 @@
 import { HTMLElement } from "node-html-parser";
 import { MediaPlaceholderEl, ENCustomPropertiesRegex } from 'Source/Constants';
 import { EmbedIconSVGMarkup, OpenIconSVGMarkup } from 'Source/EmbedIcons';
+import { renderMath, finishRenderMath, loadMathJax } from 'obsidian';
 import { loadMermaid } from 'obsidian';
 
 // Interface for validating note metadata.
@@ -420,4 +421,37 @@ export async function MermaidHandler(MermaidBlock: HTMLElement): Promise<string>
   const Mermaid = await loadMermaid() as { render: (id: string, source: string) => Promise<{ svg: string }> };
   const Result: { svg: string } = await Mermaid.render('mermaid-diagram', Source);
   return Result.svg;
+}
+
+/**
+* Extracts the inner TeX formula markup and renders it as MathML
+* using Obsidian's built-in MathJAX instance.
+*
+* @param {HTMLElement} FormulaBlock Entire TeX formula block as an HTMLElement.
+* @param {Boolean} IsBlock True by default, can be adjusted to allow inline formulas.
+* @returns {Promise<string>} - HTML string for the MathML markup.
+*/
+export async function TeXHandler(FormulaBlock: HTMLElement, IsBlock: boolean = true): Promise<string> {
+    // Extract the child <div> elements, construct a plain TeX formula string.
+    const Source = (function () {
+      let ExtractedFormula: string = ``;
+      FormulaBlock
+        .querySelectorAll("div")
+        .forEach((Child: HTMLElement) => {
+          ExtractedFormula += `${Child.innerText}\n`
+        });
+      return ExtractedFormula;
+    })();
+    type MathJaxApi = {
+      tex2mml?: (Source: string, Options?: { display?: boolean }) => string;
+    };
+    await loadMathJax();
+    const MathJaxInstance = (window as Window & { MathJax?: MathJaxApi }).MathJax;
+
+    if ((!MathJaxInstance) || (!MathJaxInstance.tex2mml)) {
+      throw new Error('MathJax tex2mml() is unavailable.');
+    }
+    const El = MathJaxInstance
+      .tex2mml(Source, { display: IsBlock }) || "Error rendering math block.";
+  return El;
 }
