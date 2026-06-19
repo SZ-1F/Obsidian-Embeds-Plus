@@ -1,8 +1,18 @@
-import { HTMLElement, parse } from 'node-html-parser';
+import {
+  HTMLElement,
+  parse
+} from 'node-html-parser';
 import { ENCSS } from 'Source/LibENEX/ENEXStyles';
-import { ParseNoteMetadata, MediaHandler, TasksHandler, CalloutHandler, WebClipHandler, MermaidHandler, TeXHandler } from 'Source/LibENEX/ENBlockHandlers';
-import { IgnoredENProps, KnownENElements, ENCustomPropertiesRegex, PlaceholderEl } from 'Source/Constants';
-import SparkMD5 from 'spark-md5';
+import * as BlockHandlers from 'Source/LibENEX/Blocks/ENBlockHandlers';
+import {
+  ExtractENProperties,
+  GetResourceTable
+} from './LibENEXHelpers';
+import {
+  IgnoredENProps,
+  KnownENElements,
+  PlaceholderEl
+} from 'Source/Constants';
 
 /**
 * Main parsing function for `.enex` files.
@@ -38,7 +48,7 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
     if (Tag.startsWith("en-")) {
       if (KnownENElements.has(Tag)) {
         // Pass to custom handler.
-        let ParsedEl: string | null = (MediaHandler(El, ResourceLookupTable)) || null;
+        let ParsedEl: string | null = (BlockHandlers.MediaHandler(El, ResourceLookupTable)) || null;
         if (ParsedEl) HTMLOutputArray.push(ParsedEl);
         continue ElementLoop;
       }
@@ -51,34 +61,31 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
 
     // Check if the element is a <div> with EN custom properties.
     const Style: string | undefined = El.getAttribute('style');
-    if ((Tag === "div") && (Style)) {
-      let MatchArray: RegExpExecArray | null;
-      ENCustomPropertiesRegex.lastIndex = 0;
-      while ((MatchArray = ENCustomPropertiesRegex.exec(Style)) !== null) {
-        const [, PropertyName, PropertyValue] = MatchArray;
+    if (Tag === "div" && Style) {
+      const Properties = ExtractENProperties(Style);
+      // Find the first known EN property on this element and dispatch to its handler.
+      for (const [PropertyName] of Properties) {
         if (KnownENElements.has(PropertyName)) {
           switch (PropertyName) {
-            case ("--en-task-group"):
+            case "--en-task-group":
               El.childNodes.forEach((Child) => { El.removeChild(Child) });
-              HTMLOutputArray.push(TasksHandler(Note) || '');
+              HTMLOutputArray.push(BlockHandlers.TasksHandler(Note) || '');
               continue ElementLoop;
-            case ("--en-callout"):
-              HTMLOutputArray.push(CalloutHandler(El));
+            case "--en-callout":
+              HTMLOutputArray.push(BlockHandlers.CalloutHandler(El));
               continue ElementLoop;
-            case ("--en-clipped-content"):
-              HTMLOutputArray.push(WebClipHandler(El, ResourceLookupTable));
+            case "--en-clipped-content":
+              HTMLOutputArray.push(BlockHandlers.WebClipHandler(El, ResourceLookupTable));
               continue ElementLoop;
-            case ("--en-mermaidblock"):
-              HTMLOutputArray.push(await MermaidHandler(El));
+            case "--en-mermaidblock":
+              HTMLOutputArray.push(await BlockHandlers.MermaidHandler(El));
               continue ElementLoop;
-            case ("--en-formulablock"):
-              HTMLOutputArray.push(await TeXHandler(El));
+            case "--en-formulablock":
+              HTMLOutputArray.push(await BlockHandlers.FormulaHandler(El));
               continue ElementLoop;
           }
-        }
-        else if (!IgnoredENProps.has(PropertyName)) {
-          // <div> with an unknown custom property.
-          console.debug(`Element "${Tag}" has an unsupported property: ${PropertyName}`)
+        } else if (!IgnoredENProps.has(PropertyName)) {
+          console.debug(`Element "${Tag}" has an unsupported property: ${PropertyName}`);
           HTMLOutputArray.push(PlaceholderEl);
           continue ElementLoop;
         }
@@ -88,38 +95,9 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
     HTMLOutputArray.push(El.toString());
   }
   // Add HTML boilerplate to final output.
-  HTMLOutputArray.unshift(ParseNoteMetadata(Note));
+  HTMLOutputArray.unshift(BlockHandlers.ParseNoteMetadata(Note));
   HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><meta charset="utf-8"><body class="${ThemeColor}"><en-note>`);
   HTMLOutputArray.push('</en-note></body></html>');
 
   return (HTMLOutputArray.join(""));
-}
-
-/**
-* Helper function to generate a lookup table for embedded resources.
-*
-* Takes each <resource> element, determines the MD5 hash, and returns a lookup table
-* containing the raw Base64 encoded data and the hash.
-*
-* @param {HTMLElement[]} Resources The full contents of an ENEX file (single note) as a string.
-* @returns {Record<string, string>} Lookup table for all resources.
-*/
-export function GetResourceTable(Resources: HTMLElement[]): Record<string, string> {
-  // Get all resource elements, generate a resource to hash table.
-  let ResourceLookupTable: Record<string, string> = {};
-  Resources.forEach((Resource) => {
-    // Get the child element containing the B64 data for the resource.
-    const RawBase64: string = Resource.querySelector('data')
-      ?.textContent
-      ?.replace(/\s+/g, '')
-      ?? '';
-
-    // Get the MD5 hash corresponding to the resource.
-    const Bytes = Uint8Array.from(atob(RawBase64), c => c.charCodeAt(0));
-    const Hash: string = SparkMD5.ArrayBuffer.hash(Bytes.buffer);
-
-    // Add the record to the lookup table.
-    ResourceLookupTable[Hash] = RawBase64;
-  })
-  return ResourceLookupTable;
 }
