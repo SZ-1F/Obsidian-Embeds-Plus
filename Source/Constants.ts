@@ -69,3 +69,4 @@ export const KnownENElements: Set<string> = new Set([
 // Define a placeholder element to display for unknown element types.
 export const PlaceholderEl: string = `<div class="en-block-unsupported"><p>This element is not currently supported in Embeds+</p></div>`;
 export const MediaPlaceholderEl: string = `<div class="en-block-unsupported-media"><p>Unsupported attachment</p></p></div>`;
+export const ParserErrorEl: string = `<div class="en-block-unsupported"><p>Failed to parse this element!</p></div>`;

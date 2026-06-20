@@ -19,7 +19,13 @@ export async function MermaidHandler(MermaidBlock: HTMLElement): Promise<string>
     return ExtractedMermaid;
   })();
   // Pass the source string to Obsidian's Mermaid handler.
-  const Mermaid = await loadMermaid() as { render: (id: string, source: string) => Promise<{ svg: string }> };
-  const Result: { svg: string } = await Mermaid.render('mermaid-diagram', Source);
-  return Result.svg;
+  try {
+    const Mermaid = await loadMermaid() as { render: (id: string, source: string) => Promise<{ svg: string }> };
+    const Result: { svg: string } = await Mermaid.render('mermaid-diagram', Source);
+    return Result.svg;
+  }
+  catch (e) {
+    const Message: string = e instanceof Error ? e.message : String(e);
+    throw new Error(`Failed to load Mermaid: ${Message}`);
+  }
 }

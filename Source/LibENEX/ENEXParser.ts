@@ -11,7 +11,8 @@ import {
 import {
   IgnoredENProps,
   KnownENElements,
-  PlaceholderEl
+  PlaceholderEl,
+  ParserErrorEl,
 } from 'Source/Constants';
 
 /**
@@ -28,8 +29,8 @@ import {
 export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''): Promise<string> {
   // Parse the raw ENEX string, convert it to DOM. Extract only the first note & its main contents.
   const ENEXDOM = parse(RawENEXString) || null;
-  const Note: HTMLElement | null = (ENEXDOM.getElementsByTagName("note"))[0] || null;
-  const NoteBody: HTMLElement | null = (Note.getElementsByTagName("en-note"))[0] || null;
+  const Note = ENEXDOM?.getElementsByTagName("note")?.[0] || null;
+  const NoteBody = Note?.getElementsByTagName("en-note")?.[0] || null;
 
   if ((!ENEXDOM) || (!Note) || (!NoteBody)) throw new Error("Error: Parsing failure: unable to extract note content.");
 
@@ -78,10 +79,22 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
               HTMLOutputArray.push(BlockHandlers.WebClipHandler(El, ResourceLookupTable));
               continue ElementLoop;
             case "--en-mermaidblock":
-              HTMLOutputArray.push(await BlockHandlers.MermaidHandler(El));
+              try {
+                HTMLOutputArray.push(await BlockHandlers.MermaidHandler(El))
+              }
+              catch (e) {
+                console.error(e);
+                HTMLOutputArray.push(ParserErrorEl);
+              }
               continue ElementLoop;
             case "--en-formulablock":
-              HTMLOutputArray.push(await BlockHandlers.FormulaHandler(El));
+              try {
+                HTMLOutputArray.push(await BlockHandlers.FormulaHandler(El));
+              }
+              catch (e) {
+                console.error(e);
+                HTMLOutputArray.push(ParserErrorEl);
+              }
               continue ElementLoop;
           }
         } else if (!IgnoredENProps.has(PropertyName)) {

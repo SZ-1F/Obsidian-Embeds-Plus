@@ -22,13 +22,21 @@ export async function FormulaHandler(FormulaBlock: HTMLElement, IsBlock: boolean
   type MathJaxApi = {
     tex2mml?: (Source: string, Options?: { display?: boolean }) => string;
   };
-  await loadMathJax();
-  const MathJaxInstance = (window as Window & { MathJax?: MathJaxApi }).MathJax;
 
-  if ((!MathJaxInstance) || (!MathJaxInstance.tex2mml)) {
-    throw new Error('MathJax tex2mml() is unavailable.');
+  // Try invoking Obsidian's native MathJAX.
+  try {
+    await loadMathJax();
+    const MathJaxInstance = (window as Window & { MathJax?: MathJaxApi }).MathJax;
+    if (!MathJaxInstance?.tex2mml) {
+        throw new Error("Unable to load MathJAX!");
+    }
+    // Render the formula by converting TeX to MathML.
+    const El = MathJaxInstance
+      .tex2mml(Source, { display: IsBlock }) || "Error rendering math block.";
+    return El;
   }
-  const El = MathJaxInstance
-    .tex2mml(Source, { display: IsBlock }) || "Error rendering math block.";
-  return El;
+  catch (e) {
+    const Message: string = e instanceof Error ? e.message : String(e);
+    throw new Error(`Failed to parse formula: ${Message}`);
+  }
 }
