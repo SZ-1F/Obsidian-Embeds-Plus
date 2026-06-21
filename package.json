@@ -24,7 +24,7 @@
 		"@eslint/js": "9.39.4",
 		"@types/node": "25.8.0",
 		"@types/spark-md5": "3.0.5",
-		"esbuild": "0.28.0",
+		"esbuild": "0.28.1",
 		"eslint": "9.39.4",
 		"eslint-plugin-obsidianmd": "0.3.0",
 		"globals": "17.6.0",
@@ -39,9 +39,13 @@
 		"@plist/plist": "1.0.0",
 		"node-html-parser": "7.1.0",
 		"obsidian": "1.12.3",
-		"spark-md5": "3.0.2"
+		"spark-md5": "3.0.2",
+		"tslog": "4.10.2"
 	},
 	"overrides": {
 		"fast-xml-parser": "5.8.0"
+	},
+	"allowScripts": {
+		"esbuild@0.28.1": true
 	}
 }
