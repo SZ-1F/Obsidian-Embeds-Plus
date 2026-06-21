@@ -2,7 +2,6 @@
 
 import { HTMLElement } from "node-html-parser";
 import { ENCustomPropertiesRegex } from "Source/Constants";
-import { MediaPlaceholderEl } from 'Source/Constants';
 import SparkMD5 from 'spark-md5';
 
 // Interface for validating note metadata.
@@ -41,6 +40,15 @@ export const FormatENEXDate = (RawTimeString: string, Timezone: string = "UTC") 
     /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
     "$1-$2-$3T$4:$5:$6Z"
   );
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: Timezone });
+  }
+  catch (e) {
+    const Message: string = e instanceof Error ? e.message : String(e);
+    Timezone = "UTC";
+    console.debug(`Error while parsing timezone string: ${Message}`);
+    console.debug(`Defaulting to UTC...`)
+  }
   const Parts: { [k: string]: string } = Object.fromEntries(
     new Intl.DateTimeFormat("en-AU", {
       weekday: "short",
