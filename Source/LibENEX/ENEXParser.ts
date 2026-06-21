@@ -28,11 +28,19 @@ import {
 */
 export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''): Promise<string> {
   // Parse the raw ENEX string, convert it to DOM. Extract only the first note & its main contents.
-  const ENEXDOM = parse(RawENEXString) || null;
-  const Note = ENEXDOM?.getElementsByTagName("note")?.[0] || null;
-  const NoteBody = Note?.getElementsByTagName("en-note")?.[0] || null;
-
-  if ((!ENEXDOM) || (!Note) || (!NoteBody)) throw new Error("Error: Parsing failure: unable to extract note content.");
+  let ENEXDOM: HTMLElement;
+  let Note: HTMLElement;
+  let NoteBody: HTMLElement;
+  try {
+    ENEXDOM = parse(RawENEXString);
+    const Note = ENEXDOM?.getElementsByTagName("note")?.[0] || null;
+    const NoteBody = Note?.getElementsByTagName("en-note")?.[0] || null;
+    if (!(NoteBody && Note)) throw new Error("Unable to extract note content!")
+  }
+  catch(e) {
+    const Message: string = e instanceof Error ? e.message : String(e);
+    return `Failed to parse ENEX content: ${Message}`;
+  }
 
   // Initialise final HTML string that will be passed to renderer.
   let HTMLOutputArray: Array<string> = [];
