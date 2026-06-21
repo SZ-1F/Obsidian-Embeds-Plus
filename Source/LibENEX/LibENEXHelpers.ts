@@ -40,6 +40,8 @@ export const FormatENEXDate = (RawTimeString: string, Timezone: string = "UTC") 
     /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
     "$1-$2-$3T$4:$5:$6Z"
   );
+  // Return early if the date string didn't match the expected ENEX format.
+  if (isNaN(new Date(ISODate).getTime())) return;
   try {
     Intl.DateTimeFormat(undefined, { timeZone: Timezone });
   }
@@ -64,7 +66,7 @@ export const FormatENEXDate = (RawTimeString: string, Timezone: string = "UTC") 
       .filter(({ type }) => type !== "literal")
       .map(({ type, value }) => [type, value])
   );
-  return `${Parts.weekday}, ${Parts.day} ${Parts.month} ${Parts.year} @ ${Parts.hour}:${Parts.minute}${Parts.dayPeriod.toLowerCase()}`;
+  return `${Parts.weekday}, ${Parts.day} ${Parts.month} ${Parts.year} @ ${Parts.hour}:${Parts.minute}${(Parts.dayPeriod || '').toLowerCase()}`;
 };
 
 /**
@@ -168,14 +170,14 @@ export const NormaliseHeightStyle = (Element: HTMLElement): void => {
 export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
   let HTMLTags: string = "";
   NoteMetadata.Tags.forEach((Tag) => {
-    HTMLTags += `<span class="tag">${Tag}</span>`;
+    HTMLTags += `<span class="tag">${EscapeHTMLAttribute(Tag)}</span>`;
   })
   let Header: string = `
     <div><span class="badge">READ ONLY</span></div>
-    <h1 class="en-note-title">${NoteMetadata.NoteTitle}</h1>
+    <h1 class="en-note-title">${EscapeHTMLAttribute(NoteMetadata.NoteTitle)}</h1>
     <div class="en-properties-header">
       <div class="en-properties-metadata">
-        <span class="en-meta-row en-meta-author">${NoteMetadata.Author || "-"}</span>
+        <span class="en-meta-row en-meta-author">${EscapeHTMLAttribute(NoteMetadata.Author) || "-"}</span>
         <span class="en-meta-row en-meta-created"><b>Created:</b> ${FormatENEXDate(NoteMetadata.CreatedDate) || "-"}</span>
         <span class="en-meta-row en-meta-updated"><b>Updated:</b> ${FormatENEXDate(NoteMetadata.UpdatedDate) || "-"}</span>
       </div>

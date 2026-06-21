@@ -1,5 +1,5 @@
 import { HTMLElement } from "node-html-parser";
-import { TaskMetadata, FormatENEXDate } from "../LibENEXHelpers";
+import { TaskMetadata, FormatENEXDate, EscapeHTMLAttribute } from "../LibENEXHelpers";
 
 /**
 * Generates a HTML block for tasks that is injected into DOM for rendering.
@@ -12,10 +12,10 @@ export const GenerateTaskEl = (TaskMetadata: TaskMetadata): string => {
   let TaskEl: string = `
     <div class="en-task" data-status="${TaskMetadata.Status}">
       <div class="en-task-checkbox"></div>
-      <div class="en-task-title">${TaskMetadata.TaskTitle}</div>
+      <div class="en-task-title">${EscapeHTMLAttribute(TaskMetadata.TaskTitle)}</div>
       <div class="en-task-date">${TaskMetadata.DueDate || ""}</div>
       <div class="en-task-metadata">
-        <span class="en-task-recurrence">${TaskMetadata.Recurrence || ""}</span>
+        <span class="en-task-recurrence">${EscapeHTMLAttribute(TaskMetadata.Recurrence || "")}</span>
         <span class="en-task-flag">${(TaskMetadata.Flagged) === true ? "true" : ""}</span>
         <span class="en-task-reminder">${(TaskMetadata.Reminders) ? "true" : ""}</span>
       </div>
