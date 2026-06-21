@@ -33,8 +33,8 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
   let NoteBody: HTMLElement;
   try {
     ENEXDOM = parse(RawENEXString);
-    const Note = ENEXDOM?.getElementsByTagName("note")?.[0] || null;
-    const NoteBody = Note?.getElementsByTagName("en-note")?.[0] || null;
+    Note = ENEXDOM?.getElementsByTagName("note")?.[0] || null;
+    NoteBody = Note?.getElementsByTagName("en-note")?.[0] || null;
     if (!(NoteBody && Note)) throw new Error("Unable to extract note content!")
   }
   catch(e) {
