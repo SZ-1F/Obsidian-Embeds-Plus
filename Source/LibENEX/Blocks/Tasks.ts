@@ -41,11 +41,19 @@ export function TasksHandler(Note: HTMLElement): string | null {
 
     // Extract reminder dates (if any).
     TaskEl.querySelectorAll("reminder")
-      .forEach((ReminderNode: HTMLElement) => {
-        ReminderNodes.push(
-          FormatENEXDate((ReminderNode.querySelector("reminderdate")?.textContent) || 'Undated') || ''
-        )
-      })
+      ?.forEach((ReminderNode: HTMLElement) => {
+        try {
+          const ReminderDateRaw: string = ReminderNode
+            .querySelector("reminderdate")
+            ?.textContent || "Undated";
+          const ReminderDateFormatted = FormatENEXDate(ReminderDateRaw) || "Undated";
+          ReminderNodes.push(ReminderDateFormatted);
+        }
+        catch (e) {
+          const Message = e instanceof Error ? e.message : String(e);
+          console.debug(`Failed to parse reminder date:${Message}`);
+        }
+      });
 
     // Extract the rest of the metadata.
     let TaskMetadata: TaskMetadata = {
