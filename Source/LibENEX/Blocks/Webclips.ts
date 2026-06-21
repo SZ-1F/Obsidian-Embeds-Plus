@@ -3,7 +3,6 @@ import { EmbedIconSVGMarkup, OpenIconSVGMarkup } from 'Source/EmbedIcons';
 import { MediaHandler } from "./Media";
 import {
   NormaliseHeightStyle,
-  BuildMediaAttributes,
   ExtractENProperties,
   EscapeHTMLAttribute
 } from "../LibENEXHelpers";
@@ -48,7 +47,7 @@ export function WebClipHandler(ClipBlock: HTMLElement, ResourceLookupTable: Reco
     ClipContents += Node.toString();
   });
 
-  const OpenSourceButton = SourceURL
+  const OpenSourceButton = SourceURL && /^https?:\/\//i.test(SourceURL)
     ? `<a class="en-web-clip-button html-embed-button html-embed-button-text" href="${EscapeHTMLAttribute(SourceURL)}" target="_blank" rel="noopener noreferrer"><span class="html-embed-button-icon">${OpenIconSVGMarkup}</span><span class="html-embed-button-label">Open Source URL</span></a>`
     : '';
   const Header = `<div class="en-web-clip-header html-embed-header"><div class="en-web-clip-header-left html-embed-header-left"><div class="html-embed-icon">${EmbedIconSVGMarkup}</div><div class="html-embed-filename">Web Clip</div></div><div class="en-web-clip-header-right html-embed-header-right">${OpenSourceButton}</div></div>`;
