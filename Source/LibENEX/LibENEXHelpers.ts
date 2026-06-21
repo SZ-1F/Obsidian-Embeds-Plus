@@ -183,7 +183,7 @@ export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
 * containing the raw Base64 encoded data and the hash.
 *
 * @param {HTMLElement[]} Resources The full contents of an ENEX file (single note) as a string.
-* @returns {Record<string, string>} Lookup table for all resources.
+* @returns {Record<Hash: string, B64: string>} Lookup table for all resources.
 */
 export function GetResourceTable(Resources: HTMLElement[]): Record<string, string> {
   // Get all resource elements, generate a resource to hash table.
@@ -196,11 +196,17 @@ export function GetResourceTable(Resources: HTMLElement[]): Record<string, strin
       ?? '';
 
     // Get the MD5 hash corresponding to the resource.
-    const Bytes = Uint8Array.from(atob(RawBase64), c => c.charCodeAt(0));
-    const Hash: string = SparkMD5.ArrayBuffer.hash(Bytes.buffer);
-
-    // Add the record to the lookup table.
-    ResourceLookupTable[Hash] = RawBase64;
+    try {
+      const Bytes = Uint8Array.from(atob(RawBase64), c => c.charCodeAt(0));
+      const Hash: string = SparkMD5.ArrayBuffer.hash(Bytes.buffer);
+      // Add the record to the lookup table.
+      ResourceLookupTable[Hash] = RawBase64;
+    }
+    catch (e) {
+      const Message: string = e instanceof Error ? e.message : String(e);
+      // Log failures, but continue with the remaining attachments.
+      console.debug(`Failed to parse attachment: ${Message}`)
+    }
   })
   return ResourceLookupTable;
 }

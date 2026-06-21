@@ -48,10 +48,12 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
     // Check for custom Evernote tags.
     if (Tag.startsWith("en-")) {
       if (KnownENElements.has(Tag)) {
-        // Pass to custom handler.
-        let ParsedEl: string | null = (BlockHandlers.MediaHandler(El, ResourceLookupTable)) || null;
-        if (ParsedEl) HTMLOutputArray.push(ParsedEl);
-        continue ElementLoop;
+        // Pass to custom handlers.
+        switch (Tag) {
+          case "en-media":
+            HTMLOutputArray.push((BlockHandlers.MediaHandler(El, ResourceLookupTable)) || ParserErrorEl);
+            continue ElementLoop;
+        }
       }
       else {
         console.debug(`Tag name "${Tag}" is not supported!`)
