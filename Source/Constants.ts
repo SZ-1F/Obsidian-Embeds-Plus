@@ -7,10 +7,15 @@ export const FILE_MODIFY_DEBOUNCE_MS = 300;
 export const NON_BLOCKING_RENDER_TIMEOUT_MS = 100;
 export const HTML_LOAD_FAILURE_TIMEOUT_MS = 15000;
 declare const __RENDER_CACHE_VERSION__: number;
+declare let __EP_LOG_LEVEL__: number;
 export const RENDERED_HTML_CACHE_VERSION =
 	typeof __RENDER_CACHE_VERSION__ === 'number'
 		? __RENDER_CACHE_VERSION__
 		: 0;
+export let EP_LOG_LEVEL: number =
+	typeof __EP_LOG_LEVEL__ === 'number'
+		? __EP_LOG_LEVEL__
+		: 4;
 
 const HtmlEmbedExtensions = new Set(['html', 'mhtml', 'mht', 'webarchive', 'enex']);
 const HtmlViewExtensions = new Set(['html', 'mhtml', 'mht', 'webarchive', 'enex']);

@@ -10,6 +10,7 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === "production");
+const testBuild = (process.argv[2] === "development");
 
 const context = await esbuild.context({
 	banner: {
@@ -36,7 +37,8 @@ const context = await esbuild.context({
 	target: "es2018",
 	logLevel: "info",
   sourcemap: prod ? false : "inline",
-	define: { __RENDER_CACHE_VERSION__: String(Math.floor(Math.random() * 1e9)) },
+  define: { __RENDER_CACHE_VERSION__: String(Math.floor(Math.random() * 1e9)) },
+  define: { __EP_LOG_LEVEL__: prod ? String(4) : String(0) },
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
@@ -45,6 +47,9 @@ const context = await esbuild.context({
 if (prod) {
 	await context.rebuild();
 	process.exit(0);
+} else if (testBuild) {
+  await context.rebuild();
+	process.exit(0);
 } else {
-	await context.watch();
+  await context.watch();
 }

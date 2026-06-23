@@ -14,6 +14,11 @@ import {
   PlaceholderEl,
   ParserErrorEl,
 } from 'Source/Constants';
+import { RootLog } from 'Source/Logger';
+
+let ModuleLog = RootLog.getSubLogger({
+  name: "ENEX-PARSER",
+});
 
 /**
 * Main parsing function for `.enex` files.
@@ -35,10 +40,12 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
     ENEXDOM = parse(RawENEXString);
     Note = ENEXDOM?.getElementsByTagName("note")?.[0] || null;
     NoteBody = Note?.getElementsByTagName("en-note")?.[0] || null;
-    if (!(NoteBody && Note)) throw new Error("Unable to extract note content!")
+    if (!(NoteBody && Note)) throw new Error("Unable to extract note content")
+    ModuleLog.debug("Successfully parsed ENEX string, and extracted note content")
   }
   catch(e) {
     const Message: string = e instanceof Error ? e.message : String(e);
+    ModuleLog.fatal(`Failed to parse ENEX content: ${Message}`);
     return `Failed to parse ENEX content: ${Message}`;
   }
 
@@ -46,12 +53,15 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
   let HTMLOutputArray: Array<string> = [];
 
   // Extract resources, generate a lookup table.
+  ModuleLog.trace("Extract resources elements and generating resource table...");
   const Resources: HTMLElement[] | null = Note.getElementsByTagName("resource") || null;
   const ResourceLookupTable: Record<string, string> = GetResourceTable(Resources);
+  ModuleLog.debug(`Successfully extracted ${Number(Resources.length || null)} resources`);
 
   // Get all elements. Use query selector to get all descendants.
   ElementLoop: for (const El of NoteBody.children) {
     const Tag: string = El.tagName.toLowerCase();
+    ModuleLog.trace(`Parsing element with the tag: ${Tag}...`);
 
     // Check for custom Evernote tags.
     if (Tag.startsWith("en-")) {
@@ -59,13 +69,14 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
         // Pass to custom handlers.
         switch (Tag) {
           case "en-media":
+            ModuleLog.trace(`${Tag} being passed to MediaHandler, with a lookup table...`);
             HTMLOutputArray.push((BlockHandlers.MediaHandler(El, ResourceLookupTable)) || ParserErrorEl);
             continue ElementLoop;
         }
       }
       else {
-        console.debug(`Tag name "${Tag}" is not supported!`)
         HTMLOutputArray.push(PlaceholderEl);
+        ModuleLog.debug(`Custom EN tag: "${Tag}" is not supported; falling back to placeholder`);
         continue ElementLoop;
       }
     }
@@ -74,27 +85,33 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
     const Style: string | undefined = El.getAttribute('style');
     if (Tag === "div" && Style) {
       const Properties = ExtractENProperties(Style);
+      ModuleLog.trace(`Custom <div> element with style properties found; extracted the following propeties: ${JSON.stringify(Properties)}`);
       // Find the first known EN property on this element and dispatch to its handler.
       for (const [PropertyName] of Properties) {
+        ModuleLog.trace(`Processing property: ${PropertyName}`);
         if (KnownENElements.has(PropertyName)) {
           switch (PropertyName) {
             case "--en-task-group":
               El.childNodes.forEach((Child) => { El.removeChild(Child) });
               HTMLOutputArray.push(BlockHandlers.TasksHandler(Note) || '');
+              ModuleLog.trace(`Property: ${PropertyName} is being handed to TasksHandler()`);
               continue ElementLoop;
             case "--en-callout":
               HTMLOutputArray.push(BlockHandlers.CalloutHandler(El));
+              ModuleLog.trace(`Property ${PropertyName} is being handed to CalloutHandler()`);
               continue ElementLoop;
             case "--en-clipped-content":
               HTMLOutputArray.push(BlockHandlers.WebClipHandler(El, ResourceLookupTable));
+              ModuleLog.trace(`Property ${PropertyName} is being handed to WebClipHandler()`);
               continue ElementLoop;
             case "--en-mermaidblock":
               try {
                 HTMLOutputArray.push(await BlockHandlers.MermaidHandler(El))
               }
               catch (e) {
-                console.error(e);
+                const Message: string = e instanceof Error ? e.message : String(e);
                 HTMLOutputArray.push(ParserErrorEl);
+                ModuleLog.warn(`Error when calling MermaidHandler(), falling back to placeholder: ${Message}`);
               }
               continue ElementLoop;
             case "--en-formulablock":
@@ -102,25 +119,30 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
                 HTMLOutputArray.push(await BlockHandlers.FormulaHandler(El));
               }
               catch (e) {
-                console.error(e);
+                const Message: string = e instanceof Error ? e.message : String(e);
                 HTMLOutputArray.push(ParserErrorEl);
+                ModuleLog.warn(`Error when calling MermaidHandler(), falling back to placeholder: ${Message}`);
               }
               continue ElementLoop;
           }
         } else if (!IgnoredENProps.has(PropertyName)) {
-          console.debug(`Element "${Tag}" has an unsupported property: ${PropertyName}`);
           HTMLOutputArray.push(PlaceholderEl);
+          ModuleLog.debug(`Element "${Tag}" has an unsupported property: ${PropertyName}; falling back to placeholder`);
           continue ElementLoop;
         }
       }
     }
     // Element is standard HTML, no custom handling required.
+    ModuleLog.trace(`Element "${Tag}" is standard HTML, no transformation being applied`);
     HTMLOutputArray.push(El.toString());
   }
   // Add HTML boilerplate to final output.
+  ModuleLog.trace(`Parsing note metadata...`);
   HTMLOutputArray.unshift(BlockHandlers.ParseNoteMetadata(Note));
   HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><meta charset="utf-8"><body class="${ThemeColor}"><en-note>`);
   HTMLOutputArray.push('</en-note></body></html>');
 
+  ModuleLog.trace(`Generating final HTML output...`);
   return (HTMLOutputArray.join(""));
+  ModuleLog.debug(`ENEX data parsed`);
 }
