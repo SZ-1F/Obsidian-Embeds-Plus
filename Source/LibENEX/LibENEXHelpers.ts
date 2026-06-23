@@ -175,24 +175,39 @@ export const NormaliseHeightStyle = (Element: HTMLElement): void => {
 * @param {NoteMetadata} NoteMetadata Extracted note metadata.
 * @returns {string} - HTML string displaying note properties.
 */
-export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
+export const GenerateNoteHeader = (NoteMetadata: NoteMetadata | undefined = undefined): string => {
   let HTMLTags: string = "";
-  NoteMetadata.Tags.forEach((Tag) => {
-    HTMLTags += `<span class="tag">${EscapeHTMLAttribute(Tag)}</span>`;
-  })
-  let Header: string = `
-    <div><span class="badge">READ ONLY</span></div>
-    <h1 class="en-note-title">${EscapeHTMLAttribute(NoteMetadata.NoteTitle)}</h1>
-    <div class="en-properties-header">
-      <div class="en-properties-metadata">
-        <span class="en-meta-row en-meta-author">${EscapeHTMLAttribute(NoteMetadata.Author) || "-"}</span>
-        <span class="en-meta-row en-meta-created"><b>Created:</b> ${FormatENEXDate(NoteMetadata.CreatedDate) || "-"}</span>
-        <span class="en-meta-row en-meta-updated"><b>Updated:</b> ${FormatENEXDate(NoteMetadata.UpdatedDate) || "-"}</span>
-      </div>
-      <div class="en-properties-tags">${HTMLTags || ""}</div>
-    </div>`.replace(/\n\s*/g, "");
-  ModuleLog.trace(`Generated note header with ${NoteMetadata.Tags.length} tag(s)`);
-  return Header;
+
+  if (!NoteMetadata) {
+    let Header: string = `
+      <div><span class="badge">READ ONLY</span></div>
+      <h1 class="en-note-title">Untitled Note</h1>
+      <div class="en-properties-header">
+        <div class="en-properties-metadata">
+          <span class="en-meta-row en-meta-error">Unable to retrieve note metadata</span>
+        </div>
+      </div>`.replace(/\n\s*/g, "");
+    ModuleLog.warn(`Note metadata could not be retrieved, fallback used`);
+    return Header;
+  }
+  else {
+    NoteMetadata.Tags.forEach((Tag) => {
+      HTMLTags += `<span class="tag">${EscapeHTMLAttribute(Tag)}</span>`;
+    })
+    let Header: string = `
+      <div><span class="badge">READ ONLY</span></div>
+      <h1 class="en-note-title">${EscapeHTMLAttribute(NoteMetadata.NoteTitle)}</h1>
+      <div class="en-properties-header">
+        <div class="en-properties-metadata">
+          <span class="en-meta-row en-meta-author">${EscapeHTMLAttribute(NoteMetadata.Author) || "-"}</span>
+          <span class="en-meta-row en-meta-created"><b>Created:</b> ${FormatENEXDate(NoteMetadata.CreatedDate) || "-"}</span>
+          <span class="en-meta-row en-meta-updated"><b>Updated:</b> ${FormatENEXDate(NoteMetadata.UpdatedDate) || "-"}</span>
+        </div>
+        <div class="en-properties-tags">${HTMLTags || ""}</div>
+      </div>`.replace(/\n\s*/g, "");
+    ModuleLog.trace(`Generated note header with ${NoteMetadata.Tags.length} tag(s)`);
+    return Header;
+  }
 }
 
 /**

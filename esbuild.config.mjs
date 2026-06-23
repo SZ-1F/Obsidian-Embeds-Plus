@@ -37,8 +37,10 @@ const context = await esbuild.context({
 	target: "es2018",
 	logLevel: "info",
   sourcemap: prod ? false : "inline",
-  define: { __RENDER_CACHE_VERSION__: String(Math.floor(Math.random() * 1e9)) },
-  define: { __EP_LOG_LEVEL__: prod ? String(4) : String(0) },
+  define: {
+    __RENDER_CACHE_VERSION__: String(Math.floor(Math.random() * 1e9)),
+    __EP_LOG_LEVEL__: prod ? String(4) : String(0),
+  },
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,

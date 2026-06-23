@@ -37,7 +37,8 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
     reminder-time,
     reminder-order
   `);
-  if (!MetadataNodes) throw new Error("Error: Unable to find and/or parse note metadata!");
+  // No metadata found, return the fallback.
+  if (!MetadataNodes) return GenerateNoteHeader();
 
   // Parse metadata & tags from querySelector result.
   let NoteTags: HTMLElement[] = Note.querySelectorAll("tag") || ["-"];
@@ -52,5 +53,5 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
     Tags: NoteTags.map((El) => El.textContent) || [''],
   }
   ModuleLog.debug(`Successfully parsed note metadata for: ${NoteMetadata.NoteTitle}`);
-  return GenerateNoteHeader(NoteMetadata)
+  return GenerateNoteHeader(NoteMetadata);
 }

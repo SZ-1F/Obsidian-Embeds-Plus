@@ -823,6 +823,44 @@ export const ENCSS: string = `
       font-weight: bold;
   }
 
+  .en-meta-error {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      align-self: center;
+      gap: var(--spacing-1);
+      max-width: 100%;
+      margin: var(--spacing-0-75) auto;
+      padding: var(--spacing-1) var(--spacing-1-5);
+      color: var(--colors-secondary-red-400);
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+      text-align: center;
+      white-space: normal;
+  }
+
+  .en-meta-error::before {
+      content: "";
+      display: block;
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      background-color: currentColor;
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19.7251 20C20.181 20 20.6011 19.756 20.829 19.36C21.057 18.964 21.057 18.476 20.829 18.08L13.1031 4.63999C12.876 4.24399 12.4551 4 12 4C11.5449 4 11.124 4.24399 10.8961 4.63999L3.17098 18.08C2.94301 18.476 2.94301 18.964 3.17098 19.36C3.3981 19.756 3.81893 20 4.27408 20H19.7251ZM4.86489 18.4L12 5.98798L19.1351 18.4H4.86489Z'/%3E%3Cpath d='M12.75 10.5752C12.75 10.161 12.4142 9.82523 12 9.82523C11.5858 9.82523 11.25 10.161 11.25 10.5752V13.2979C11.25 13.7121 11.5858 14.0479 12 14.0479C12.4142 14.0479 12.75 13.7121 12.75 13.2979V10.5752Z'/%3E%3Cpath d='M12.875 15.9511C12.875 16.4344 12.4832 16.8261 12 16.8261C11.5168 16.8261 11.125 16.4344 11.125 15.9511C11.125 15.4679 11.5168 15.0761 12 15.0761C12.4832 15.0761 12.875 15.4679 12.875 15.9511Z'/%3E%3C/svg%3E");
+      -webkit-mask-repeat: no-repeat;
+      -webkit-mask-size: 16px;
+      -webkit-mask-position: center;
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19.7251 20C20.181 20 20.6011 19.756 20.829 19.36C21.057 18.964 21.057 18.476 20.829 18.08L13.1031 4.63999C12.876 4.24399 12.4551 4 12 4C11.5449 4 11.124 4.24399 10.8961 4.63999L3.17098 18.08C2.94301 18.476 2.94301 18.964 3.17098 19.36C3.3981 19.756 3.81893 20 4.27408 20H19.7251ZM4.86489 18.4L12 5.98798L19.1351 18.4H4.86489Z'/%3E%3Cpath d='M12.75 10.5752C12.75 10.161 12.4142 9.82523 12 9.82523C11.5858 9.82523 11.25 10.161 11.25 10.5752V13.2979C11.25 13.7121 11.5858 14.0479 12 14.0479C12.4142 14.0479 12.75 13.7121 12.75 13.2979V10.5752Z'/%3E%3Cpath d='M12.875 15.9511C12.875 16.4344 12.4832 16.8261 12 16.8261C11.5168 16.8261 11.125 16.4344 11.125 15.9511C11.125 15.4679 11.5168 15.0761 12 15.0761C12.4832 15.0761 12.875 15.4679 12.875 15.9511Z'/%3E%3C/svg%3E");
+      mask-repeat: no-repeat;
+      mask-size: 16px;
+      mask-position: center;
+  }
+
+  body.darkMode .en-meta-error {
+      color: var(--colors-secondary-red-300);
+  }
+
   /* =============================================================================
      16. TASKS
      ============================================================================= */

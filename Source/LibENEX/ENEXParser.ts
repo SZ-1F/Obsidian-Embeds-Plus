@@ -138,7 +138,13 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
   }
   // Add HTML boilerplate to final output.
   ModuleLog.trace(`Parsing note metadata...`);
-  HTMLOutputArray.unshift(BlockHandlers.ParseNoteMetadata(Note));
+  try {
+    HTMLOutputArray.unshift(BlockHandlers.ParseNoteMetadata(Note));
+  }
+  catch(e) {
+    let Message: string = e instanceof Error ? e.message : String(e);
+    ModuleLog.warn(`Failed to parse metadata: ${Message}`);
+  }
   HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><meta charset="utf-8"><body class="${ThemeColor}"><en-note>`);
   HTMLOutputArray.push('</en-note></body></html>');
 
