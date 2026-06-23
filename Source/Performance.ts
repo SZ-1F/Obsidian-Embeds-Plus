@@ -2,6 +2,12 @@
  * Performance timing utilities for tracking embed rendering stages.
  */
 
+import { RootLog } from './Logger';
+
+let ModuleLog = RootLog.getSubLogger({
+  name: "PERFORMANCE",
+});
+
 // Enable debug timing in development.
 const EnableDebugTiming = false;
 
@@ -95,5 +101,5 @@ export function LogPerformanceSummary(FilePath: string, Context: string): void {
 		return;
 	}
 
-	console.debug(`[Embeds-Plus Perf] ${Prefix} - ${Context}: ${Stages.join(', ')}`);
+	ModuleLog.debug(`${Prefix} - ${Context}: ${Stages.join(', ')}`);
 }

@@ -35,6 +35,11 @@ import {
 } from './Performance';
 import { PersistentCache, type PersistentCacheRecord } from './PersistentCache';
 import { ParseENEX } from './LibENEX/ENEXParser';
+import { RootLog } from './Logger';
+
+let ModuleLog = RootLog.getSubLogger({
+  name: "MAIN",
+});
 
 interface MarkdownViewWithCm extends MarkdownView {
 	editor: MarkdownView['editor'] & {
@@ -64,8 +69,6 @@ export default class HtmlViewerPlugin extends Plugin {
 	LoggedRenderedEmbeds: Set<string> = new Set();
 	PersistentCache = new PersistentCache();
 	ActiveENEXRenderers: Set<HTMLEmbedRenderer> = new Set();
-
-  private readonly LogPrefix = '[Embeds-Plus]:';
 
   ThemeColor: string = '';
 
@@ -131,9 +134,7 @@ export default class HtmlViewerPlugin extends Plugin {
 	}
 
 	LogEmbedRendered(FilePath: string, DurationMs: number): void {
-		console.debug(
-			`${this.LogPrefix} ${this.FormatEmbedLabel(FilePath)} embed rendered successfully in ${DurationMs.toFixed(2)}ms.`
-		);
+		ModuleLog.debug(`${this.FormatEmbedLabel(FilePath)} embed rendered successfully in ${DurationMs.toFixed(2)}ms`);
 	}
 
 	LogPluginError(Context: string, ErrorValue: unknown, FilePath?: string): void {
@@ -141,7 +142,7 @@ export default class HtmlViewerPlugin extends Plugin {
 			ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue);
 		const FileSegment = FilePath ? ` ${this.FormatEmbedLabel(FilePath)}` : '';
 		console.error(
-			`${this.LogPrefix} Failed to ${Context}${FileSegment}: ${ErrorMessage}.`
+			`[Embeds-Plus] Failed to ${Context}${FileSegment}: ${ErrorMessage}.`
 		);
 	}
 

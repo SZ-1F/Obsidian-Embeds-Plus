@@ -1,5 +1,10 @@
 import { HTMLElement } from "node-html-parser";
 import { ExtractENProperties } from "../LibENEXHelpers";
+import { RootLog } from 'Source/Logger';
+
+let ModuleLog = RootLog.getSubLogger({
+  name: "ENEX-CALLOUTS",
+});
 
 /**
 * Generates a HTML block for callout elements that is injected into DOM for rendering.
@@ -28,8 +33,10 @@ export const GenerateCalloutEl = (Properties: Map<string, string>, Contents: str
 * @returns {string} - HTML string, complete, styled task block.
 */
 export function CalloutHandler(CalloutBlock: HTMLElement): string {
+  ModuleLog.trace(`Extracting callout properties and inner content...`);
   let CalloutContents: string = '';
   (CalloutBlock.querySelectorAll("*")).forEach((El) => { CalloutContents += El.toString() });
   const Properties = ExtractENProperties(CalloutBlock.getAttribute('style'));
+  ModuleLog.trace(`Generated callout element with colour: ${Properties.get('--en-color') || 'plain'}`);
   return GenerateCalloutEl(Properties, CalloutContents);
 }

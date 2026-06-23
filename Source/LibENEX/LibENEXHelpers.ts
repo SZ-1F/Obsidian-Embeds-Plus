@@ -3,6 +3,11 @@
 import { HTMLElement } from "node-html-parser";
 import { ENCustomPropertiesRegex } from "Source/Constants";
 import SparkMD5 from 'spark-md5';
+import { RootLog } from 'Source/Logger';
+
+let ModuleLog = RootLog.getSubLogger({
+  name: "ENEX-HELPERS",
+});
 
 // Interface for validating note metadata.
 export interface NoteMetadata {
@@ -48,8 +53,7 @@ export const FormatENEXDate = (RawTimeString: string, Timezone: string = "UTC") 
   catch (e) {
     const Message: string = e instanceof Error ? e.message : String(e);
     Timezone = "UTC";
-    console.debug(`Error while parsing timezone string: ${Message}`);
-    console.debug(`Defaulting to UTC...`)
+    ModuleLog.warn(`Failed to parse timezone string, defaulting to UTC: ${Message}`);
   }
   const Parts: { [k: string]: string } = Object.fromEntries(
     new Intl.DateTimeFormat("en-AU", {
@@ -83,6 +87,7 @@ export const ExtractENProperties = (Style: string | undefined): Map<string, stri
   for (const [, Name, Value = ""] of Style.matchAll(ENCustomPropertiesRegex)) {
     Properties.set(Name, Value);
   }
+  ModuleLog.trace(`Extracted ${Properties.size} custom EN propert${Properties.size === 1 ? 'y' : 'ies'} from style string`);
   return Properties;
 };
 
@@ -116,6 +121,7 @@ export const BuildMediaAttributes = (MediaEl: HTMLElement): string => {
     }
     AttributeString += ` ${AttributeName}="${EscapeHTMLAttribute(AttributeValue)}"`;
   }
+  ModuleLog.trace(`Built attribute string for en-media element`);
   return AttributeString;
 };
 
@@ -153,6 +159,8 @@ export const NormaliseHeightStyle = (Element: HTMLElement): void => {
   if (FilteredDeclarations.length === Declarations.length) {
     return;
   }
+  const RemovedCount = Declarations.length - FilteredDeclarations.length;
+  ModuleLog.trace(`Normalised height styles on element, removed ${RemovedCount} declaration(s)`);
   if (FilteredDeclarations.length === 0) {
     Element.removeAttribute('style');
     return;
@@ -183,6 +191,7 @@ export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
       </div>
       <div class="en-properties-tags">${HTMLTags || ""}</div>
     </div>`.replace(/\n\s*/g, "");
+  ModuleLog.trace(`Generated note header with ${NoteMetadata.Tags.length} tag(s)`);
   return Header;
 }
 
@@ -197,6 +206,7 @@ export const GenerateNoteHeader = (NoteMetadata: NoteMetadata): string => {
 */
 export function GetResourceTable(Resources: HTMLElement[]): Record<string, string> {
   // Get all resource elements, generate a resource to hash table.
+  ModuleLog.trace(`Processing ${Resources.length} resource element(s)...`);
   let ResourceLookupTable: Record<string, string> = {};
   Resources.forEach((Resource) => {
     // Get the child element containing the B64 data for the resource.
@@ -211,11 +221,12 @@ export function GetResourceTable(Resources: HTMLElement[]): Record<string, strin
       const Hash: string = SparkMD5.ArrayBuffer.hash(Bytes.buffer);
       // Add the record to the lookup table.
       ResourceLookupTable[Hash] = RawBase64;
+      ModuleLog.trace(`Successfully hashed resource, adding to lookup table`);
     }
     catch (e) {
       const Message: string = e instanceof Error ? e.message : String(e);
       // Log failures, but continue with the remaining attachments.
-      console.debug(`Failed to parse attachment: ${Message}`)
+      ModuleLog.warn(`Failed to parse resource attachment, skipping: ${Message}`);
     }
   })
   return ResourceLookupTable;

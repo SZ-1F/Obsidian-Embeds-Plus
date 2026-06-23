@@ -144,5 +144,4 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
 
   ModuleLog.trace(`Generating final HTML output...`);
   return (HTMLOutputArray.join(""));
-  ModuleLog.debug(`ENEX data parsed`);
 }

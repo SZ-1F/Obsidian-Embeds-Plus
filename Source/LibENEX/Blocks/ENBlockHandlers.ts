@@ -4,6 +4,11 @@
 
 import { HTMLElement } from "node-html-parser";
 import { NoteMetadata, GenerateNoteHeader } from "../LibENEXHelpers";
+import { RootLog } from 'Source/Logger';
+
+let ModuleLog = RootLog.getSubLogger({
+  name: "ENEX-BLOCK-HANDLERS",
+});
 
 // Re-export individual block handlers.
 export * from './Callouts';
@@ -22,6 +27,7 @@ export * from './Mermaid';
 */
 export function ParseNoteMetadata(Note: HTMLElement): string {
   // Get child elements from metadata block.
+  ModuleLog.trace(`Querying note metadata nodes...`);
   let MetadataNodes: HTMLElement[] = Note.querySelectorAll(`
     title,
     created,
@@ -35,6 +41,7 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
 
   // Parse metadata & tags from querySelector result.
   let NoteTags: HTMLElement[] = Note.querySelectorAll("tag") || ["-"];
+  ModuleLog.trace(`Extracted ${NoteTags.length} tag(s) from note`);
   let NoteMetadata: NoteMetadata = {
     NoteTitle: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "title")?.textContent || "-",
     Author: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "author")?.textContent || "-",
@@ -44,5 +51,6 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
     ReminderOrder: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "reminder-order")?.textContent || "-",
     Tags: NoteTags.map((El) => El.textContent) || [''],
   }
+  ModuleLog.debug(`Successfully parsed note metadata for: ${NoteMetadata.NoteTitle}`);
   return GenerateNoteHeader(NoteMetadata)
 }

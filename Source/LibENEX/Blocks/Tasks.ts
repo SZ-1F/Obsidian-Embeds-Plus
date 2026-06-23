@@ -1,14 +1,20 @@
 import { HTMLElement } from "node-html-parser";
 import { TaskMetadata, FormatENEXDate, EscapeHTMLAttribute } from "../LibENEXHelpers";
+import { RootLog } from 'Source/Logger';
+
+let ModuleLog = RootLog.getSubLogger({
+  name: "ENEX-TASKS",
+});
 
 /**
 * Generates a HTML block for tasks that is injected into DOM for rendering.
-* Inlcudes metadata such as title, reminders, flags, etc.
+* Includes metadata such as title, reminders, flags, etc.
 *
 * @param {TaskMetadata} TaskMetadata All metadata (i.e. child elements between <task> nodes).
 * @returns {string} - HTML string, complete, styles task block.
 */
 export const GenerateTaskEl = (TaskMetadata: TaskMetadata): string => {
+  ModuleLog.trace(`Generating task element HTML for task: ${TaskMetadata.TaskTitle}`);
   let TaskEl: string = `
     <div class="en-task" data-status="${TaskMetadata.Status}">
       <div class="en-task-checkbox"></div>
@@ -35,11 +41,13 @@ export function TasksHandler(Note: HTMLElement): string | null {
   let HTMLOutput: string = "";
   let TaskNodes: HTMLElement[] | null = Note.querySelectorAll(`task`) || null;
   if (!TaskNodes) return TaskNodes;
+  ModuleLog.trace(`Processing ${TaskNodes.length} task node(s)...`);
 
   TaskNodes.forEach((TaskEl: HTMLElement) => {
     let ReminderNodes: Array<string> = [];
 
     // Extract reminder dates (if any).
+    ModuleLog.trace(`Extracting reminders for task...`);
     TaskEl.querySelectorAll("reminder")
       ?.forEach((ReminderNode: HTMLElement) => {
         try {
@@ -51,7 +59,7 @@ export function TasksHandler(Note: HTMLElement): string | null {
         }
         catch (e) {
           const Message = e instanceof Error ? e.message : String(e);
-          console.debug(`Failed to parse reminder date:${Message}`);
+          ModuleLog.warn(`Failed to parse reminder date, skipping: ${Message}`);
         }
       });
 
@@ -66,7 +74,9 @@ export function TasksHandler(Note: HTMLElement): string | null {
       Reminders: (ReminderNodes.length) ? ReminderNodes : undefined,
       ReminderTimezone: TaskEl.querySelector("timezone")?.textContent
     }
+    ModuleLog.trace(`Extracted task metadata: status=${TaskMetadata.Status}, flagged=${TaskMetadata.Flagged}`);
     HTMLOutput += GenerateTaskEl(TaskMetadata);
   })
+  ModuleLog.debug(`Processed ${TaskNodes.length} task(s)`);
   return HTMLOutput;
 }

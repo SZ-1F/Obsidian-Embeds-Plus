@@ -6,6 +6,11 @@ import {
   ExtractENProperties,
   EscapeHTMLAttribute
 } from "../LibENEXHelpers";
+import { RootLog } from 'Source/Logger';
+
+let ModuleLog = RootLog.getSubLogger({
+  name: "ENEX-WEBCLIPS",
+});
 
 /**
 * Prepares clipped HTML so it renders consistently inside the web clip frame.
@@ -18,6 +23,7 @@ export const PrepareWebClipContent = (
   ClipBlock: HTMLElement,
   ResourceLookupTable: Record<string, string>
 ): void => {
+  ModuleLog.trace(`Preparing web clip content, processing embedded media and normalising styles...`);
   ClipBlock.querySelectorAll('en-media').forEach((MediaEl) => {
     const ParsedMedia = MediaHandler(MediaEl, ResourceLookupTable);
     MediaEl.replaceWith(ParsedMedia);
@@ -39,6 +45,8 @@ export function WebClipHandler(ClipBlock: HTMLElement, ResourceLookupTable: Reco
   const Properties = ExtractENProperties(ClipBlock.getAttribute('style'));
   const SourceURL = (Properties.get('--en-clipped-source-url') || '').trim();
   const ClipType = ((Properties.get('--en-clipped-content') || '').trim()) || 'unknown';
+  ModuleLog.trace(`Processing web clip block with type: ${ClipType}`);
+  ModuleLog.trace(`Source URL present: ${SourceURL ? 'yes' : 'no'}`);
 
   PrepareWebClipContent(ClipBlock, ResourceLookupTable);
 
@@ -52,6 +60,7 @@ export function WebClipHandler(ClipBlock: HTMLElement, ResourceLookupTable: Reco
     : '';
   const Header = `<div class="en-web-clip-header html-embed-header"><div class="en-web-clip-header-left html-embed-header-left"><div class="html-embed-icon">${EmbedIconSVGMarkup}</div><div class="html-embed-filename">Web Clip</div></div><div class="en-web-clip-header-right html-embed-header-right">${OpenSourceButton}</div></div>`;
 
+  ModuleLog.trace(`Generated web clip HTML output`);
   return `
     <div class="en-web-clip" data-clip-type="${EscapeHTMLAttribute(ClipType)}">
       <div class="en-web-clip-shell markdown-embed">
