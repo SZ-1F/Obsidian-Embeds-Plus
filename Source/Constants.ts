@@ -53,6 +53,8 @@ export const IgnoredENProps: Set<string> = new Set([
   "--en-clipped-source-title",
   "--en-displayMode",
   "--en-isEditMode",
+  "--en-headingLevel",
+  "--en-headingNodeId",
 ]);
 
 // List of known Evernote custom properties. Elements covered by this list need custom handling.
