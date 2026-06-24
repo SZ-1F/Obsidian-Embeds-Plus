@@ -66,7 +66,6 @@ export function ParseMHTML(Content: string): string {
 		HtmlContent = InjectCssResources(HtmlContent, Index, MainPartBaseUrl);
 		HtmlContent = RemoveUnresolvedLocalResourceUrls(HtmlContent);
 		HtmlContent = RemoveResidualLinkTags(HtmlContent);
-		HtmlContent = HtmlContent.replace(/<base[^\u003e]*>/gi, '');
 
 		return HtmlContent;
 	} catch (ErrorValue) {

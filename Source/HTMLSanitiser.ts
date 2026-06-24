@@ -1,10 +1,20 @@
+// Blocks all remote network requests from embedded content.
+const EmbedCsp = [
+	"default-src 'none'",
+	"img-src data: blob:",
+	"media-src data: blob:",
+	"font-src data:",
+	"style-src 'unsafe-inline' data:",
+].join('; ');
+
 const AnimationOverrideCss = [
 	'*, *::before, *::after { animation: none !important; transition: none !important; }',
 	'marquee { display: block !important; overflow: hidden !important; }',
 	'blink { text-decoration: none !important; }',
 ].join(' ');
 
-const LinkAttributes = ['href', 'xlink:href'] as const;
+// All attributes that accept a URL and must be checked for unsafe schemes.
+const NavigationAttributes = ['href', 'xlink:href', 'action', 'formaction'] as const;
 const LinkHintRels = new Set(['preload', 'modulepreload', 'prefetch', 'prerender', 'preconnect', 'dns-prefetch']);
 const LinkTagPattern = /<link\b[^\u003e]*>/gi;
 const LinkRelPattern = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s\u003e]+))/i;
@@ -20,6 +30,7 @@ export async function SanitiseHtml(Html: string): Promise<string> {
 
 	await FreezeGifImages(DocumentValue);
 
+	InjectCsp(DocumentValue);
 	InjectAnimationOverride(DocumentValue);
 
 	return DocumentValue.documentElement.outerHTML;
@@ -36,11 +47,17 @@ function RemoveExecutableContent(DocumentValue: Document): void {
 
 		ElementValue.remove();
 	});
+
+	// Remove <base> for all formats, prevents redirecting relative URLs.
+	DocumentValue.querySelectorAll('base').forEach((ElementValue) => ElementValue.remove());
+
+	// Remove tags that can load arbitrary external content or bypass the iframe sandbox.
+	DocumentValue
+		.querySelectorAll('iframe, object, embed, frame, frameset, applet, form')
+		.forEach((ElementValue) => ElementValue.remove());
 }
 
-/**
- * Keeps link and media cleanup together so new rules are harder to miss.
- */
+// Link and media cleanup.
 function SanitiseAllElements(DocumentValue: Document): void {
 	const AllElements = Array.from(DocumentValue.querySelectorAll('*'));
 
@@ -58,9 +75,9 @@ function SanitiseAllElements(DocumentValue: Document): void {
 
 		ElementValue.removeAttribute('autofocus');
 
-		for (const AttributeName of LinkAttributes) {
+		for (const AttributeName of NavigationAttributes) {
 			const AttributeValue = ElementValue.getAttribute(AttributeName);
-			if (AttributeValue && IsJavascriptUrl(AttributeValue)) {
+			if (AttributeValue && IsUnsafeUrl(AttributeValue)) {
 				ElementValue.removeAttribute(AttributeName);
 			}
 		}
@@ -142,6 +159,24 @@ function CanFreezeGifSource(Src: string): boolean {
 	return /^data:image\/gif/i.test(Src);
 }
 
+function InjectCsp(DocumentValue: Document): void {
+	const MetaElement = DocumentValue.createElement('meta');
+	MetaElement.setAttribute('http-equiv', 'Content-Security-Policy');
+	MetaElement.setAttribute('content', EmbedCsp);
+
+	if (DocumentValue.head) {
+		DocumentValue.head.prepend(MetaElement);
+		return;
+	}
+
+	if (DocumentValue.body) {
+		DocumentValue.body.prepend(MetaElement);
+		return;
+	}
+
+	DocumentValue.documentElement.prepend(MetaElement);
+}
+
 function InjectAnimationOverride(DocumentValue: Document): void {
 	const StyleElement = DocumentValue.createElement('style');
 	StyleElement.textContent = AnimationOverrideCss;
@@ -159,8 +194,19 @@ function InjectAnimationOverride(DocumentValue: Document): void {
 	DocumentValue.documentElement.appendChild(StyleElement);
 }
 
-function IsJavascriptUrl(Url: string): boolean {
-	return Url.trim().toLowerCase().startsWith('javascript:');
+/**
+ * Returns true for URL values that must never be set on a DOM attribute.
+ * Control characters are stripped first so obfuscated URLs like `java\tscript:` are caught.
+ */
+function IsUnsafeUrl(Url: string): boolean {
+	// Strip ASCII control/whitespace chars that browsers ignore.
+	const NormalisedUrl = Url.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+	return (
+		NormalisedUrl.startsWith('javascript:') ||
+		NormalisedUrl.startsWith('vbscript:') ||
+		NormalisedUrl.startsWith('data:text/html') ||
+		NormalisedUrl.startsWith('data:image/svg+xml')
+	);
 }
 
 function SanitiseLinkHint(ElementValue: Element): boolean {
@@ -340,6 +386,28 @@ function SanitiseCssUrlDeclarations(CssText: string): string {
 	});
 }
 
+// Safe data subtypes that cannot carry executable content.
+const SafeDataUriPrefixes = [
+	'data:image/png',
+	'data:image/jpeg',
+	'data:image/jpg',
+	'data:image/svg+xml',
+	'data:image/gif',
+	'data:image/webp',
+	'data:image/avif',
+	'data:image/bmp',
+	'data:image/tiff',
+	'data:image/ico',
+	'data:image/x-icon',
+	'data:font/',
+	'data:application/font',
+	'data:audio/',
+	'data:video/',
+	'data:text/css',
+	'data:text/plain',
+	'data:,',
+] as const;
+
 function IsUnsafeArchiveResourceUrl(Url: string): boolean {
 	const TrimmedUrl = Url.trim();
 	if (TrimmedUrl.length === 0) {
@@ -347,8 +415,13 @@ function IsUnsafeArchiveResourceUrl(Url: string): boolean {
 	}
 
 	const LowerUrl = TrimmedUrl.toLowerCase();
+
+	// Allow safe data subtypes. Reject all others (e.g. data:text/html, data:image/svg+xml).
+	if (LowerUrl.startsWith('data:')) {
+		return !SafeDataUriPrefixes.some((Prefix) => LowerUrl.startsWith(Prefix));
+	}
+
 	if (
-		LowerUrl.startsWith('data:') ||
 		LowerUrl.startsWith('http://') ||
 		LowerUrl.startsWith('https://') ||
 		LowerUrl.startsWith('mailto:') ||
@@ -358,21 +431,7 @@ function IsUnsafeArchiveResourceUrl(Url: string): boolean {
 		return false;
 	}
 
-	if (
-		LowerUrl.startsWith('blob:') ||
-		LowerUrl.startsWith('file:') ||
-		LowerUrl.startsWith('app:') ||
-		LowerUrl.startsWith('cid:') ||
-		LowerUrl.startsWith('mw-data:') ||
-		LowerUrl.startsWith('//')
-	) {
-		return true;
-	}
-
-	if (/^[a-z][a-z0-9+.-]*:/i.test(LowerUrl)) {
-		return true;
-	}
-
+	// All other schemes (blob:, file:, app:, cid:, //, etc.) and relative paths are considered unsafe.
 	return true;
 }
 

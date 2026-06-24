@@ -52,9 +52,6 @@ export function ParseWebArchive(BinaryData: ArrayBuffer): string {
 		// Remove link tags that cause blocked network/CSP noise.
 		HtmlContent = RemoveResidualLinkTags(HtmlContent);
 
-		// Remove base tags to prevent navigation issues.
-		HtmlContent = HtmlContent.replace(/<base[^\u003e]*>/gi, '');
-
 		return HtmlContent;
 	} catch (ErrorValue) {
 		return `<html><body><p>Error parsing WebArchive file: ${ErrorValue instanceof Error ? ErrorValue.message : String(ErrorValue)}</p></body></html>`;

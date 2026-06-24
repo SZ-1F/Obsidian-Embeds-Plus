@@ -89,7 +89,7 @@ export function ScheduleNonBlockingRender(
 		return;
 	}
 
-	requestAnimationFrame(Callback);
+	window.requestAnimationFrame(Callback);
 }
 
 export function WithTimeout<T>(
@@ -98,17 +98,17 @@ export function WithTimeout<T>(
 	ErrorMessage: string
 ): Promise<T> {
 	return new Promise<T>((Resolve, Reject) => {
-		const Timer = activeWindow.setTimeout(() => {
+		const Timer = window.setTimeout(() => {
 			Reject(new Error(ErrorMessage));
 		}, TimeoutMs);
 
 		PromiseValue.then(
 			(Result) => {
-				activeWindow.clearTimeout(Timer);
+				window.clearTimeout(Timer);
 				Resolve(Result);
 			},
 			(ErrorValue) => {
-				activeWindow.clearTimeout(Timer);
+				window.clearTimeout(Timer);
 				Reject(
 					ErrorValue instanceof Error
 						? ErrorValue
