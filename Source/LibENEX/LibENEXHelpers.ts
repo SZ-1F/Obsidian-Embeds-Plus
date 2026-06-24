@@ -40,7 +40,7 @@ export interface TaskMetadata {
 * @returns {string} - Date & time as a readable string.
 */
 export const FormatENEXDate = (RawTimeString: string, Timezone: string = "UTC") => {
-  if (RawTimeString === 'Undated') return;
+  if (RawTimeString === 'Unknown') return RawTimeString;
   const ISODate: string = RawTimeString.replace(
     /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
     "$1-$2-$3T$4:$5:$6Z"

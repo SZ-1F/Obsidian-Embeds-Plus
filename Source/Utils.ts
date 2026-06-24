@@ -7,8 +7,8 @@ import { NON_BLOCKING_RENDER_TIMEOUT_MS } from './Constants';
  * @param Length number: Maximum number of characters.
  * @returns string: Truncated or original string.
  */
-export function Truncate(Original: string, Length: number = 30): string {
-  if (Original.length > 10) {
+export function Truncate(Original: string, Length: number = 10): string {
+  if (Original.length > Length) {
     let Truncated: string = (Original.substring(0, (Length - 1))) + "...";
     return Truncated;
   }
