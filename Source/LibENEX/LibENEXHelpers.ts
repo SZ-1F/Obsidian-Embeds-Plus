@@ -17,7 +17,7 @@ export interface NoteMetadata {
   UpdatedDate: string;
   ReminderTime: string;
   ReminderOrder: string;
-  Tags: Array<string>;
+  Tags: Array<string> | undefined;
 }
 
 // Interface for validating note metadata.
@@ -175,7 +175,7 @@ export const NormaliseHeightStyle = (Element: HTMLElement): void => {
 * @param {NoteMetadata} NoteMetadata Extracted note metadata.
 * @returns {string} - HTML string displaying note properties.
 */
-export const GenerateNoteHeader = (NoteMetadata: NoteMetadata | undefined = undefined): string => {
+export const GenerateNoteHeader = (NoteMetadata?: NoteMetadata): string => {
   let HTMLTags: string = "";
 
   if (!NoteMetadata) {
@@ -191,21 +191,21 @@ export const GenerateNoteHeader = (NoteMetadata: NoteMetadata | undefined = unde
     return Header;
   }
   else {
-    NoteMetadata.Tags.forEach((Tag) => {
+    NoteMetadata.Tags?.forEach((Tag) => {
       HTMLTags += `<span class="tag">${EscapeHTMLAttribute(Tag)}</span>`;
-    })
+    });
     let Header: string = `
       <div><span class="badge">READ ONLY</span></div>
       <h1 class="en-note-title">${EscapeHTMLAttribute(NoteMetadata.NoteTitle)}</h1>
       <div class="en-properties-header">
         <div class="en-properties-metadata">
-          <span class="en-meta-row en-meta-author">${EscapeHTMLAttribute(NoteMetadata.Author) || "-"}</span>
-          <span class="en-meta-row en-meta-created"><b>Created:</b> ${FormatENEXDate(NoteMetadata.CreatedDate) || "-"}</span>
-          <span class="en-meta-row en-meta-updated"><b>Updated:</b> ${FormatENEXDate(NoteMetadata.UpdatedDate) || "-"}</span>
+          <span class="en-meta-row en-meta-author">${EscapeHTMLAttribute(NoteMetadata.Author)}</span>
+          <span class="en-meta-row en-meta-created"><b>Created:</b> ${FormatENEXDate(NoteMetadata.CreatedDate)}</span>
+          <span class="en-meta-row en-meta-updated"><b>Updated:</b> ${FormatENEXDate(NoteMetadata.UpdatedDate)}</span>
         </div>
-        <div class="en-properties-tags">${HTMLTags || ""}</div>
+        <div class="en-properties-tags">${HTMLTags || '<span class="mutedText"><i>No Tags</i></span>'}</div>
       </div>`.replace(/\n\s*/g, "");
-    ModuleLog.trace(`Generated note header with ${NoteMetadata.Tags.length} tag(s)`);
+    ModuleLog.trace(`Generated note header`);
     return Header;
   }
 }

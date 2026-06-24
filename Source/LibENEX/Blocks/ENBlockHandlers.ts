@@ -41,16 +41,16 @@ export function ParseNoteMetadata(Note: HTMLElement): string {
   if (!MetadataNodes) return GenerateNoteHeader();
 
   // Parse metadata & tags from querySelector result.
-  let NoteTags: HTMLElement[] = Note.querySelectorAll("tag") || ["-"];
+  let NoteTags: HTMLElement[] = Note.querySelectorAll("tag") || [];
   ModuleLog.trace(`Extracted ${NoteTags.length} tag(s) from note`);
   let NoteMetadata: NoteMetadata = {
-    NoteTitle: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "title")?.textContent || "-",
-    Author: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "author")?.textContent || "-",
-    CreatedDate: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "created")?.textContent || "-",
-    UpdatedDate: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "updated")?.textContent || "-",
-    ReminderTime: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "reminder-time")?.textContent || "-",
-    ReminderOrder: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "reminder-order")?.textContent || "-",
-    Tags: NoteTags.map((El) => El.textContent) || [''],
+    NoteTitle: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "title")?.textContent || "Untitled",
+    Author: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "author")?.textContent || "Unknown",
+    CreatedDate: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "created")?.textContent || "Unknown",
+    UpdatedDate: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "updated")?.textContent || "Unknown",
+    ReminderTime: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "reminder-time")?.textContent || "None",
+    ReminderOrder: MetadataNodes.find(El => (El.tagName.toLowerCase()) === "reminder-order")?.textContent || "None",
+    Tags: NoteTags ? NoteTags.map((El) => El.textContent) : undefined,
   }
   ModuleLog.debug(`Successfully parsed note metadata for: ${NoteMetadata.NoteTitle}`);
   return GenerateNoteHeader(NoteMetadata);
