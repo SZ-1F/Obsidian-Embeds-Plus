@@ -35,7 +35,7 @@ export const GenerateCalloutEl = (Properties: Map<string, string>, Contents: str
 export function CalloutHandler(CalloutBlock: HTMLElement): string {
   ModuleLog.trace(`Extracting callout properties and inner content...`);
   let CalloutContents: string = '';
-  (CalloutBlock.querySelectorAll("*")).forEach((El) => { CalloutContents += El.toString() });
+  (CalloutBlock.children).forEach((El) => {CalloutContents += El.toString()});
   const Properties = ExtractENProperties(CalloutBlock.getAttribute('style'));
   ModuleLog.trace(`Generated callout element with colour: ${Properties.get('--en-color') || 'plain'}`);
   return GenerateCalloutEl(Properties, CalloutContents);
