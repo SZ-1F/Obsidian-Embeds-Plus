@@ -61,6 +61,9 @@ interface CacheEntry {
 
 export type { CacheEntry };
 
+// Maximum number of parsed HTML files to keep in the in-memory cache.
+const MaxMemoryCacheEntries = 20;
+
 export default class HtmlViewerPlugin extends Plugin {
 	Cache: Map<string, CacheEntry> = new Map();
 	PendingLoads: Map<string, Promise<void>> = new Map();
@@ -133,6 +136,33 @@ export default class HtmlViewerPlugin extends Plugin {
 			})
 		);
 
+		this.registerEvent(
+			this.app.vault.on('rename', (File, OldPath) => {
+				if (!(File instanceof TFile)) {
+					return;
+				}
+
+				// Invalidate the old path; the new path has no cache entry yet.
+				this.PruneMemoryCacheEntry(OldPath);
+				this.InvalidatePersistentCache(OldPath);
+			})
+		);
+
+		this.registerEvent(
+			this.app.vault.on('delete', (File) => {
+				if (!(File instanceof TFile)) {
+					return;
+				}
+
+				if (!IsHtmlEmbedExtension(File.extension)) {
+					return;
+				}
+
+				this.PruneMemoryCacheEntry(File.path);
+				this.InvalidatePersistentCache(File.path);
+			})
+		);
+
 		void this.PersistentCache.Prune();
 	}
 
@@ -198,16 +228,25 @@ export default class HtmlViewerPlugin extends Plugin {
 	async GetCachedContent(File: TFile): Promise<CacheEntry> {
 		const ExistingEntry = this.Cache.get(File.path);
 		if (ExistingEntry && ExistingEntry.Mtime === File.stat.mtime) {
+			const PreviousHash = ExistingEntry.Hash;
 			const UpdatedEntry = this.RefreshCachedResourceHints(File.path, ExistingEntry);
 			UpdatedEntry.LastAccessed = Date.now();
-			void this.PersistCacheEntry(File.path, UpdatedEntry);
+
+			// Only persist if the resource hint strip actually changed the content.
+			if (UpdatedEntry.Hash !== PreviousHash) {
+				void this.PersistCacheEntry(File.path, UpdatedEntry);
+			}
+
 			return UpdatedEntry;
 		}
 
 		const PersistentEntry = await this.LoadPersistentCacheEntry(File);
 		if (PersistentEntry) {
 			const UpdatedEntry = this.RefreshCachedResourceHints(File.path, PersistentEntry);
+			// Remove stale entries first so its blob URL is revoked before an overwrite.
+			this.PruneMemoryCacheEntry(File.path);
 			this.Cache.set(File.path, UpdatedEntry);
+			this.PruneLRU);
 			return UpdatedEntry;
 		}
 
@@ -422,6 +461,7 @@ export default class HtmlViewerPlugin extends Plugin {
 			};
 
 			this.Cache.set(File.path, CacheEntryValue);
+			this.PruneLRU();
 			void this.PersistCacheEntry(File.path, CacheEntryValue);
 
 			if (PreviousEntry === undefined || PreviousEntry.Hash !== NextHash) {
@@ -535,10 +575,47 @@ export default class HtmlViewerPlugin extends Plugin {
 		await this.PersistentCache.Set(Record);
 	}
 
-	private InvalidateMemoryCache(FilePath: string): void {
-		this.RevokeBlobUrl(FilePath);
+	/**
+	 * Removes a single entry from the in-memory cache.
+	 * Deletes its blob URL first to prevent memory leaks.
+	 */
+	PruneMemoryCacheEntry(FilePath: string): void {
+		const Entry = this.Cache.get(FilePath);
+		if (Entry?.BlobUrl) {
+			URL.revokeObjectURL(Entry.BlobUrl);
+			Entry.BlobUrl = undefined;
+		}
+
 		this.Cache.delete(FilePath);
 		this.ResetEmbedRenderedLogged(FilePath);
+	}
+
+	/**
+	 * Removes the least-recently-used entry when the in-memory cache is over its
+	 * entry limit. Called after every new entry is inserted.
+	 */
+	private PruneLRU(): void {
+		if (this.Cache.size <= MaxMemoryCacheEntries) {
+			return;
+		}
+
+		let LRUPath: string | null = null;
+		let LRUTime = Infinity;
+
+		for (const [Path, Entry] of this.Cache) {
+			if (Entry.LastAccessed < LRUTime) {
+				LRUTime = Entry.LastAccessed;
+				LRUPath = Path;
+			}
+		}
+
+		if (LRUPath !== null) {
+			this.PruneMemoryCacheEntry(LRUPath);
+		}
+	}
+
+	private InvalidateMemoryCache(FilePath: string): void {
+		this.PruneMemoryCacheEntry(FilePath);
 	}
 
 	private InvalidatePersistentCache(FilePath: string): void {

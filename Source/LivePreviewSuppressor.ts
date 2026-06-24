@@ -43,13 +43,8 @@ export function CreateLivePreviewSuppressor(Plugin: HtmlViewerPlugin) {
 					)
 				);
 
-				if (
-					!Update.docChanged &&
-					!Update.selectionSet &&
-					!Update.viewportChanged &&
-					!Update.geometryChanged &&
-					!HasCacheUpdate
-				) {
+				// Only reprocess when the document content changes or a cache update arrives.
+				if (!Update.docChanged && !HasCacheUpdate) {
 					return;
 				}
 
@@ -171,11 +166,7 @@ export function CreateLivePreviewSuppressor(Plugin: HtmlViewerPlugin) {
 }
 
 function IsLivePreviewEnabled(View: EditorView): boolean {
-	try {
-		return View.state.field(EditorLivePreviewField);
-	} catch {
-		return false;
-	}
+	return View.state.field(EditorLivePreviewField, false) ?? false;
 }
 
 function GetSourcePath(View: EditorView): string | null {

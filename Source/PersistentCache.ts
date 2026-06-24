@@ -1,8 +1,24 @@
+import { RootLog } from './Logger';
+
+const ModuleLog = RootLog.getSubLogger({ name: 'PERSISTENT_CACHE' });
+
 export interface PersistentCacheRecord {
 	Path: string;
 	Mtime: number;
 	Version: number;
 	Html: string;
+	Hash: string;
+	LastAccessed: number;
+	ByteSize: number;
+}
+
+/**
+ * Metadata used for pruning cached data.
+ */
+interface PersistentCacheMetadata {
+	Path: string;
+	Mtime: number;
+	Version: number;
 	Hash: string;
 	LastAccessed: number;
 	ByteSize: number;
@@ -15,7 +31,9 @@ const MaxCacheEntries = 10;
 const MaxCacheBytes = 25 * 1024 * 1024;
 
 export class PersistentCache {
-	private DatabasePromise: Promise<IDBDatabase | null> | null = null;
+  private DatabasePromise: Promise<IDBDatabase | null> | null = null;
+
+	private WriteQueue: Promise<void> = Promise.resolve();
 
 	async Get(Path: string, Mtime: number, Version: number): Promise<PersistentCacheRecord | null> {
 		const Database = await this.OpenDatabase();
@@ -46,7 +64,10 @@ export class PersistentCache {
 				});
 			};
 
-			Request.onerror = () => Resolve(null);
+			Request.onerror = () => {
+				ModuleLog.error('Failed to read record from persistent cache', Request.error);
+				Resolve(null);
+			};
 		});
 	}
 
@@ -56,9 +77,9 @@ export class PersistentCache {
 			return;
 		}
 
-		await this.PutRecord(Database, Record);
-
-		await this.Prune();
+		// Serialise the write & prune through the queue to prevent races.
+		this.WriteQueue = this.WriteQueue.then(() => this.SetInternal(Database, Record));
+		await this.WriteQueue;
 	}
 
 	async DeletePath(Path: string): Promise<void> {
@@ -67,25 +88,8 @@ export class PersistentCache {
 			return;
 		}
 
-		const Records = await this.GetAllRecords(Database);
-		const MatchingRecords = Records.filter((Record) => Record.Path === Path);
-
-		if (MatchingRecords.length === 0) {
-			return;
-		}
-
-		await new Promise<void>((Resolve) => {
-			const Transaction = Database.transaction(StoreName, 'readwrite');
-			const Store = Transaction.objectStore(StoreName);
-
-			for (const Record of MatchingRecords) {
-				Store.delete(this.BuildKey(Record.Path, Record.Mtime, Record.Version));
-			}
-
-			Transaction.oncomplete = () => Resolve();
-			Transaction.onerror = () => Resolve();
-			Transaction.onabort = () => Resolve();
-		});
+		this.WriteQueue = this.WriteQueue.then(() => this.DeletePathInternal(Database, Path));
+		await this.WriteQueue;
 	}
 
 	async Prune(): Promise<void> {
@@ -94,27 +98,20 @@ export class PersistentCache {
 			return;
 		}
 
-		const Records = await this.GetAllRecords(Database);
-		const SortedRecords = Records.sort((A, B) => B.LastAccessed - A.LastAccessed);
+		this.WriteQueue = this.WriteQueue.then(() => this.PruneInternal(Database));
+		await this.WriteQueue;
+	}
 
-		let TotalBytes = 0;
-		const RecordsToKeep: PersistentCacheRecord[] = [];
-		const RecordsToDelete: PersistentCacheRecord[] = [];
+	private async SetInternal(Database: IDBDatabase, Record: PersistentCacheRecord): Promise<void> {
+		await this.PutRecord(Database, Record);
+		await this.PruneInternal(Database);
+	}
 
-		for (const Record of SortedRecords) {
-			const WouldExceedEntryCap = RecordsToKeep.length >= MaxCacheEntries;
-			const WouldExceedByteCap = TotalBytes + Record.ByteSize > MaxCacheBytes;
+	private async DeletePathInternal(Database: IDBDatabase, Path: string): Promise<void> {
+		const Metadata = await this.GetAllRecordMetadata(Database);
+		const Matching = Metadata.filter((Record) => Record.Path === Path);
 
-			if (WouldExceedEntryCap || WouldExceedByteCap) {
-				RecordsToDelete.push(Record);
-				continue;
-			}
-
-			RecordsToKeep.push(Record);
-			TotalBytes += Record.ByteSize;
-		}
-
-		if (RecordsToDelete.length === 0) {
+		if (Matching.length === 0) {
 			return;
 		}
 
@@ -122,12 +119,58 @@ export class PersistentCache {
 			const Transaction = Database.transaction(StoreName, 'readwrite');
 			const Store = Transaction.objectStore(StoreName);
 
-			for (const Record of RecordsToDelete) {
+			for (const Record of Matching) {
 				Store.delete(this.BuildKey(Record.Path, Record.Mtime, Record.Version));
 			}
 
 			Transaction.oncomplete = () => Resolve();
-			Transaction.onerror = () => Resolve();
+			Transaction.onerror = () => {
+				ModuleLog.error('Failed to delete records from persistent cache', Transaction.error);
+				Resolve();
+			};
+			Transaction.onabort = () => Resolve();
+		});
+	}
+
+	private async PruneInternal(Database: IDBDatabase): Promise<void> {
+		// Use metadata records to avoid reading full HTML bodies during prune.
+		const Metadata = await this.GetAllRecordMetadata(Database);
+		const SortedMetadata = Metadata.sort((A, B) => B.LastAccessed - A.LastAccessed);
+
+		let TotalBytes = 0;
+		const ToKeep: PersistentCacheMetadata[] = [];
+		const ToDelete: PersistentCacheMetadata[] = [];
+
+		for (const Record of SortedMetadata) {
+			const WouldExceedEntryCap = ToKeep.length >= MaxCacheEntries;
+			const WouldExceedByteCap = TotalBytes + Record.ByteSize > MaxCacheBytes;
+
+			if (WouldExceedEntryCap || WouldExceedByteCap) {
+				ToDelete.push(Record);
+				continue;
+			}
+
+			ToKeep.push(Record);
+			TotalBytes += Record.ByteSize;
+		}
+
+		if (ToDelete.length === 0) {
+			return;
+		}
+
+		await new Promise<void>((Resolve) => {
+			const Transaction = Database.transaction(StoreName, 'readwrite');
+			const Store = Transaction.objectStore(StoreName);
+
+			for (const Record of ToDelete) {
+				Store.delete(this.BuildKey(Record.Path, Record.Mtime, Record.Version));
+			}
+
+			Transaction.oncomplete = () => Resolve();
+			Transaction.onerror = () => {
+				ModuleLog.error('Failed to prune persistent cache', Transaction.error);
+				Resolve();
+			};
 			Transaction.onabort = () => Resolve();
 		});
 	}
@@ -149,40 +192,60 @@ export class PersistentCache {
 				};
 
 				Request.onsuccess = () => Resolve(Request.result);
-				Request.onerror = () => Resolve(null);
+				Request.onerror = () => {
+					ModuleLog.error('Failed to open persistent cache database', Request.error);
+					Resolve(null);
+				};
 			});
 		}
 
 		return this.DatabasePromise;
 	}
 
-	private async GetAllRecords(Database: IDBDatabase): Promise<PersistentCacheRecord[]> {
+	/**
+	 * Reads all records (only the metadata fields), skipping the HTML body.
+	 * Used during prune to avoid loading large HTML strings unnecessarily.
+	 */
+	private async GetAllRecordMetadata(Database: IDBDatabase): Promise<PersistentCacheMetadata[]> {
 		return new Promise((Resolve) => {
 			const Transaction = Database.transaction(StoreName, 'readonly');
 			const Store = Transaction.objectStore(StoreName);
-			const Request = Store.getAll();
+			const Results: PersistentCacheMetadata[] = [];
+			const Request = Store.openCursor();
 
 			Request.onsuccess = () => {
-				const Results = (Request.result as Array<Partial<PersistentCacheRecord> & { Id?: string }>) ?? [];
-				Resolve(
-					Results
-						.map(({ Id: _Id, ...Record }) => ({
-							Path: Record.Path,
-							Mtime: Record.Mtime,
-							Version:
-								typeof Record.Version === 'number'
-									? Record.Version
-									: 0,
-							Html: Record.Html,
-							Hash: Record.Hash,
-							LastAccessed: Record.LastAccessed,
-							ByteSize: Record.ByteSize,
-						}))
-						.filter(IsPersistentCacheRecord)
-				);
+				const Cursor = Request.result as IDBCursorWithValue | null;
+				if (!Cursor) {
+					Resolve(Results);
+					return;
+				}
+
+				const Raw = Cursor.value as Partial<PersistentCacheRecord & { Id?: string }>;
+				if (
+					typeof Raw.Path === 'string' &&
+					typeof Raw.Mtime === 'number' &&
+					typeof Raw.Version === 'number' &&
+					typeof Raw.Hash === 'string' &&
+					typeof Raw.LastAccessed === 'number' &&
+					typeof Raw.ByteSize === 'number'
+				) {
+					Results.push({
+						Path: Raw.Path,
+						Mtime: Raw.Mtime,
+						Version: Raw.Version,
+						Hash: Raw.Hash,
+						LastAccessed: Raw.LastAccessed,
+						ByteSize: Raw.ByteSize,
+					});
+				}
+
+				Cursor.continue();
 			};
 
-			Request.onerror = () => Resolve([]);
+			Request.onerror = () => {
+				ModuleLog.error('Failed to read metadata from persistent cache', Request.error);
+				Resolve(Results);
+			};
 		});
 	}
 
@@ -197,20 +260,11 @@ export class PersistentCache {
 			Store.put({ ...Record, Id: this.BuildKey(Record.Path, Record.Mtime, Record.Version) });
 
 			Transaction.oncomplete = () => Resolve();
-			Transaction.onerror = () => Resolve();
+			Transaction.onerror = () => {
+				ModuleLog.error('Failed to write record to persistent cache', Transaction.error);
+				Resolve();
+			};
 			Transaction.onabort = () => Resolve();
 		});
 	}
-}
-
-function IsPersistentCacheRecord(Record: Partial<PersistentCacheRecord>): Record is PersistentCacheRecord {
-	return (
-		typeof Record.Path === 'string' &&
-		typeof Record.Mtime === 'number' &&
-		typeof Record.Version === 'number' &&
-		typeof Record.Html === 'string' &&
-		typeof Record.Hash === 'string' &&
-		typeof Record.LastAccessed === 'number' &&
-		typeof Record.ByteSize === 'number'
-	);
 }
