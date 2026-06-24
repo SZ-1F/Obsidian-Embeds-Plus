@@ -72,17 +72,18 @@ export default class HtmlViewerPlugin extends Plugin {
 
   ThemeColor: string = '';
   ReadableLine: boolean = true;
+  Vault = this.app.vault as typeof this.app.vault & { getConfig: (key: string) => unknown };
 
   // Determine theme color currently being used.
   private UpdateThemeColor(): void {
-    this.ThemeColor = document.body.classList.contains('theme-dark')
+    this.ThemeColor = activeDocument.body.classList.contains('theme-dark')
       ? 'darkMode'
       : '';
   }
 
   // Determine if "Readable line length" is enabled.
   private UpdateLineLength(): void {
-    this.ReadableLine = Boolean((this.app.vault as any).getConfig('readableLineLength'));
+    this.ReadableLine = Boolean(this.Vault.getConfig('readableLineLength'));
   }
 
 	onload() {
@@ -331,10 +332,10 @@ export default class HtmlViewerPlugin extends Plugin {
 
 		const ExistingTimer = this.DebounceTimers.get(File.path);
 		if (ExistingTimer !== undefined) {
-			activeWindow.clearTimeout(ExistingTimer);
+			window.clearTimeout(ExistingTimer);
 		}
 
-		const Timer = activeWindow.setTimeout(() => {
+		const Timer = window.setTimeout(() => {
 			void this.LoadAndCacheHtml(File).catch((ErrorValue) => {
 				this.LogPluginError('refresh cache', ErrorValue, File.path);
 			});
@@ -600,7 +601,7 @@ export default class HtmlViewerPlugin extends Plugin {
 	}
 
 	onunload() {
-		this.DebounceTimers.forEach((Timer) => activeWindow.clearTimeout(Timer));
+		this.DebounceTimers.forEach((Timer) => window.clearTimeout(Timer));
 
 		// Revoke all blob URLs to prevent memory leaks.
 		for (const Entry of this.Cache.values()) {
