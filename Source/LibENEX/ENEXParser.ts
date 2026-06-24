@@ -28,11 +28,13 @@ let ModuleLog = RootLog.getSubLogger({
 *
 * @param {string} RawENEXString The full contents of an ENEX file (single note) as a string.
 * @param {string} ThemeColor Current theme being used (dark/light mode). Either 'darkMode', or ''.
+* @param {boolean} ReadableLine Whether or not the "Readable line length" is enabled in the vault.
 * @throws {Error} - Unable to parse ENEX content (not valid XML, etc.).
 * @returns {Promise<string>} - Converted HTML string containing parsed elements from ENEX file.
 */
-export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''): Promise<string> {
+export async function ParseENEX(RawENEXString: string, ThemeColor: string = '', ReadableLine: boolean): Promise<string> {
   // Parse the raw ENEX string, convert it to DOM. Extract only the first note & its main contents.
+  ModuleLog.debug(ReadableLine);
   let ENEXDOM: HTMLElement;
   let Note: HTMLElement;
   let NoteBody: HTMLElement;
@@ -145,7 +147,7 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = ''):
     let Message: string = e instanceof Error ? e.message : String(e);
     ModuleLog.warn(`Failed to parse metadata: ${Message}`);
   }
-  HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><meta charset="utf-8"><body class="${ThemeColor}"><en-note>`);
+  HTMLOutputArray.unshift(`<html><head><style>${ENCSS}</style></head><meta charset="utf-8"><body class="${ThemeColor}${ReadableLine ? " readableLine" : "" }"><en-note>`);
   HTMLOutputArray.push('</en-note></body></html>');
 
   ModuleLog.trace(`Generating final HTML output...`);

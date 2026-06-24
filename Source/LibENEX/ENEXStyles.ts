@@ -82,6 +82,11 @@ export const ENCSS: string = `
       --color-surface-fill-secondarybrand-enabled: var(--colors-secondary-blue-300);
   }
 
+  .readableLine {
+    max-width:75%;
+    margin: auto;
+  }
+
 
   /* =============================================================================
      3. BASE RESETS
@@ -784,6 +789,13 @@ export const ENCSS: string = `
       color: inherit;
       border-radius: var(--radius-xs);
       padding: var(--spacing-0-25) var(--spacing-1-25);
+      font-size: 12px;
+  }
+
+  .en-properties-tags > .mutedText {
+      color: inherit;
+      opacity: 0.7;
+      border-radius: var(--radius-xs);
       font-size: 12px;
   }
 

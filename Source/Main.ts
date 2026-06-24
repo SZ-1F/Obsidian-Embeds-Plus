@@ -71,12 +71,18 @@ export default class HtmlViewerPlugin extends Plugin {
 	ActiveENEXRenderers: Set<HTMLEmbedRenderer> = new Set();
 
   ThemeColor: string = '';
+  ReadableLine: boolean = true;
 
   // Determine theme color currently being used.
   private UpdateThemeColor(): void {
     this.ThemeColor = document.body.classList.contains('theme-dark')
       ? 'darkMode'
       : '';
+  }
+
+  // Determine if "Readable line length" is enabled.
+  private UpdateLineLength(): void {
+    this.ReadableLine = Boolean((this.app.vault as any).getConfig('readableLineLength'));
   }
 
 	onload() {
@@ -100,6 +106,7 @@ export default class HtmlViewerPlugin extends Plugin {
 
     // Update the theme status when CSS changes.
     this.UpdateThemeColor();
+    this.UpdateLineLength();
 
     this.registerEvent(this.app.workspace.on('css-change', () => {
       const PreviousTheme = this.ThemeColor;
@@ -363,7 +370,7 @@ export default class HtmlViewerPlugin extends Plugin {
 
     if (Ext === 'enex') {
       StartStage(File.path, 'parseENEX');
-      const ParsedHtml = await ParseENEX(Content, this.ThemeColor);
+      const ParsedHtml = await ParseENEX(Content, this.ThemeColor, this.ReadableLine);
       RecordStage(File.path, 'parseENEX', EndStage(File.path, 'parseENEX'));
       return ParsedHtml;
     }
