@@ -1,4 +1,4 @@
-import { HTMLElement } from "node-html-parser";
+import { HTMLElement, parse } from "node-html-parser";
 import { EmbedIconSVGMarkup, OpenIconSVGMarkup } from 'Source/EmbedIcons';
 import { MediaHandler } from "./Media";
 import {
@@ -26,7 +26,7 @@ export const PrepareWebClipContent = (
   ModuleLog.trace(`Preparing web clip content, processing embedded media and normalising styles...`);
   ClipBlock.querySelectorAll('en-media').forEach((MediaEl) => {
     const ParsedMedia = MediaHandler(MediaEl, ResourceLookupTable);
-    MediaEl.replaceWith(ParsedMedia);
+    MediaEl.replaceWith(parse(ParsedMedia));
   });
 
   ClipBlock.querySelectorAll('[style]').forEach((StyledEl) => {

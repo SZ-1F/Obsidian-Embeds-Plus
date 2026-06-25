@@ -40,7 +40,11 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = '', 
   let NoteBody: HTMLElement;
   try {
     ENEXDOM = parse(RawENEXString);
-    Note = ENEXDOM?.getElementsByTagName("note")?.[0] || null;
+    const AllNotes = ENEXDOM?.getElementsByTagName("note");
+    if (AllNotes && AllNotes.length > 1) {
+      ModuleLog.warn(`Multi-note ENEX file detected (${AllNotes.length} notes found); only the first note will be rendered`);
+    }
+    Note = AllNotes?.[0] || null;
     NoteBody = Note?.getElementsByTagName("en-note")?.[0] || null;
     if (!(NoteBody && Note)) throw new Error("Unable to extract note content")
     ModuleLog.debug("Successfully parsed ENEX string, and extracted note content")
@@ -123,7 +127,7 @@ export async function ParseENEX(RawENEXString: string, ThemeColor: string = '', 
               catch (e) {
                 const Message: string = e instanceof Error ? e.message : String(e);
                 HTMLOutputArray.push(ParserErrorEl);
-                ModuleLog.warn(`Error when calling MermaidHandler(), falling back to placeholder: ${Message}`);
+                ModuleLog.warn(`Error when calling FormulaHandler(), falling back to placeholder: ${Message}`);
               }
               continue ElementLoop;
           }

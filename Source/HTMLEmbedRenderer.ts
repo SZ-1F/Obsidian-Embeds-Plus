@@ -112,7 +112,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		const HeaderLeft = Header.createDiv({ cls: 'html-embed-header-left' });
 
 		const IconElement = HeaderLeft.createDiv({ cls: 'html-embed-icon' });
-		IconElement.appendChild(CreateEmbedIconSVGElement(document));
+		IconElement.appendChild(CreateEmbedIconSVGElement(this.containerEl.ownerDocument));
 
 		const Filename = HeaderLeft.createDiv({ cls: 'html-embed-filename' });
 		Filename.textContent = this.File.basename;
@@ -136,7 +136,7 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		const HeaderLeft = Header.createDiv({ cls: 'html-embed-header-left' });
 
 		const IconElement = HeaderLeft.createDiv({ cls: 'html-embed-icon' });
-		IconElement.appendChild(CreateEmbedIconSVGElement(document));
+		IconElement.appendChild(CreateEmbedIconSVGElement(this.containerEl.ownerDocument));
 
 		const Filename = HeaderLeft.createDiv({ cls: 'html-embed-filename' });
 		Filename.textContent = this.File.basename;
@@ -181,7 +181,8 @@ export class HTMLEmbedRenderer extends MarkdownRenderChild {
 		});
 
 		const IconContainer = Button.createSpan({ cls: 'html-embed-button-icon' });
-		IconContainer.appendChild(CreateOpenIconSVGElement(document));
+		// Use the container's own document so icons render correctly in pop-out windows.
+		IconContainer.appendChild(CreateOpenIconSVGElement(ContainerElement.ownerDocument));
 		Button.createSpan({ cls: 'html-embed-button-label', text: Label });
 
 		Button.addEventListener('click', (Event: MouseEvent) => {

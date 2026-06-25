@@ -121,18 +121,14 @@ function ExtractHeaderParam(HeaderValue: string, ParamName: string): string | nu
  */
 function SplitParts(Body: string, Boundary: string): string[] | null {
 	const OpenDelimiter = `--${Boundary}`;
-	const CloseDelimiter = `--${Boundary}--`;
 	const Parts: string[] = [];
 
-	let SearchFrom = 0;
+	// Find the first boundary, which may appear at the very start of the body (no preceding newline).
+	let DelimiterPos = FindBoundaryLine(Body, Boundary, 0, true);
 
-	while (true) {
-		const DelimiterPos = Body.indexOf(OpenDelimiter, SearchFrom);
-		if (DelimiterPos === -1) {
-			break;
-		}
-
+	while (DelimiterPos !== -1) {
 		const AfterDelimiter = DelimiterPos + OpenDelimiter.length;
+
 		if (Body.startsWith('--', AfterDelimiter)) {
 			break;
 		}
@@ -145,8 +141,10 @@ function SplitParts(Body: string, Boundary: string): string[] | null {
 			PartStart++;
 		}
 
-		const NextDelimiterPos = Body.indexOf(`\n--${Boundary}`, PartStart);
+		const NextDelimiterPos = FindBoundaryLine(Body, Boundary, PartStart, false);
+
 		if (NextDelimiterPos === -1) {
+			const CloseDelimiter = `--${Boundary}--`;
 			const ClosePos = Body.indexOf(CloseDelimiter, PartStart);
 			const PartEnd = ClosePos !== -1 ? ClosePos : Body.length;
 
@@ -162,10 +160,27 @@ function SplitParts(Body: string, Boundary: string): string[] | null {
 
 		Parts.push(Body.substring(PartStart, PartEnd));
 
-		SearchFrom = NextDelimiterPos + 1;
+		DelimiterPos = NextDelimiterPos;
 	}
 
 	return Parts.length > 0 ? Parts : null;
+}
+
+/**
+ * Finds the next occurrence of --boundary that is anchored to a line start.
+ * When AllowAtStart is true the very beginning of the string is also accepted.
+ */
+function FindBoundaryLine(Body: string, Boundary: string, FromIndex: number, AllowAtStart: boolean): number {
+	const OpenDelimiter = `--${Boundary}`;
+
+	// Check the position at the very start of the body for the first boundary.
+	if (AllowAtStart && Body.startsWith(OpenDelimiter, FromIndex)) {
+		return FromIndex;
+	}
+
+	const NewlinePos = Body.indexOf(`\n${OpenDelimiter}`, FromIndex);
+	// Return the position of the delimiter itself, skipping the leading \n.
+	return NewlinePos !== -1 ? NewlinePos + 1 : -1;
 }
 
 /**
@@ -280,6 +295,7 @@ function FindMainPartIndex(Parts: MimePart[], OuterHeaders: Map<string, string>)
 
 /**
  * Decodes a MIME part and registers it in the resource index by Content-Location and Content-ID.
+ * A malformed part is skipped so one bad resource does not abort the whole file.
  */
 function AddPartToIndex(Part: MimePart, Index: ResourceIndex): void {
 	const ContentLocation = Part.Headers.get('content-location');
@@ -294,7 +310,15 @@ function AddPartToIndex(Part: MimePart, Index: ResourceIndex): void {
 	const ContentType = Part.Headers.get('content-type') ?? 'application/octet-stream';
 	const MimeType = ContentType.split(';')[0].trim();
 	const TransferEncoding = (Part.Headers.get('content-transfer-encoding') ?? '7bit').trim().toLowerCase();
-	const Data = DecodeMimeBody(Part.RawBody, TransferEncoding);
+
+	let Data: Uint8Array;
+	try {
+		Data = DecodeMimeBody(Part.RawBody, TransferEncoding);
+	} catch {
+		// Skip resources that cannot be decoded rather than aborting the whole file.
+		return;
+	}
+
 	const Encoding = ExtractCharsetFromContentType(ContentType);
 
 	Index.addResource({ Url, MimeType, Data, Encoding });

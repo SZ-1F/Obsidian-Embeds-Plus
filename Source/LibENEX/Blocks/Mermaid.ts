@@ -25,15 +25,20 @@ export async function MermaidHandler(MermaidBlock: HTMLElement): Promise<string>
     return ExtractedMermaid;
   })();
   // Pass the source string to Obsidian's Mermaid handler.
+  // Use unique ID per call so concurrent renders do not share a DOM node.
+  const RenderTargetId = `mermaid-diagram-${Math.random().toString(36).slice(2)}`;
   try {
     ModuleLog.trace(`Invoking Obsidian Mermaid renderer...`);
     const Mermaid = await loadMermaid() as { render: (id: string, source: string) => Promise<{ svg: string }> };
-    const Result: { svg: string } = await Mermaid.render('mermaid-diagram', Source);
+    const Result: { svg: string } = await Mermaid.render(RenderTargetId, Source);
     ModuleLog.trace(`Successfully rendered Mermaid diagram`);
     return Result.svg;
   }
   catch (e) {
     const Message: string = e instanceof Error ? e.message : String(e);
     throw new Error(`Failed to load Mermaid: ${Message}`);
+  }
+  finally {
+    activeDocument.getElementById(RenderTargetId)?.remove();
   }
 }

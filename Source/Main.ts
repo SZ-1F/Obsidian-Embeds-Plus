@@ -246,7 +246,7 @@ export default class HtmlViewerPlugin extends Plugin {
 			// Remove stale entries first so its blob URL is revoked before an overwrite.
 			this.PruneMemoryCacheEntry(File.path);
 			this.Cache.set(File.path, UpdatedEntry);
-			this.PruneLRU);
+			this.PruneLRU();
 			return UpdatedEntry;
 		}
 
