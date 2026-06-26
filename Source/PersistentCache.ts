@@ -214,7 +214,7 @@ export class PersistentCache {
 			const Request = Store.openCursor();
 
 			Request.onsuccess = () => {
-				const Cursor = Request.result as IDBCursorWithValue | null;
+				const Cursor = Request.result;
 				if (!Cursor) {
 					Resolve(Results);
 					return;

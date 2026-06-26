@@ -200,6 +200,7 @@ function InjectAnimationOverride(DocumentValue: Document): void {
  */
 function IsUnsafeUrl(Url: string): boolean {
 	// Strip ASCII control/whitespace chars that browsers ignore.
+	// eslint-disable-next-line no-control-regex
 	const NormalisedUrl = Url.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
 	return (
 		NormalisedUrl.startsWith('javascript:') ||
