@@ -1,7 +1,7 @@
 {
 	"name": "Embeds+",
-	"version": "1.1.3",
-	"description": "View and embed HTML, MHTML, and Web Archive files natively with full styling and inline preview support.",
+	"version": "1.2.0",
+	"description": "View and embed HTML, MHTML, Web Archives, and more, natively with full styling and inline preview support.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
