@@ -1,7 +1,7 @@
 {
   "id": "embeds-plus",
   "name": "Embeds+",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "minAppVersion": "1.5.7",
   "description": "View and embed HTML, MHTML, and Web Archive files natively with full styling and inline preview support.",
   "author": "@SZ-1F",
